@@ -1,0 +1,1 @@
+this project in early development stage, so some things can be globally or fully changed. also project hasnt license yet, it will be added in the near future after creating the base of the project.
