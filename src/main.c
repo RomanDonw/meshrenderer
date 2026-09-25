@@ -11,7 +11,7 @@
 #include "shaders.h"
 
 static void onresize(GLFWwindow *window, int width, int height)
-{ glViewport(0, 0, width, height); }
+{ glViewport(0, 0, width > 0 ? width : 1, height > 0 ? height : 1); }
 static bool isshadercompilationsuccessful(GLuint shader);
 static GLchar *getshadercompilelog(GLuint shader);
 
@@ -89,6 +89,7 @@ int main(int argc, char *argv[])
 
     // ==========================================================================================
 
+    /*
     float *meshvertices, *meshUVs;
     uint32_t *meshindices;
     uint32_t meshverticescount, meshUVscount, meshindicescount;
@@ -111,8 +112,8 @@ int main(int argc, char *argv[])
 
         meshvertices = malloc(vertexcount * 3 * sizeof(float));
         meshUVs = malloc(vertexcount * 2 * sizeof(float));
-        meshindices = malloc(tricount)
-        if (!mesh)
+        meshindices = malloc(tricount * 3 * sizeof(uint32_t));
+        if (!(meshvertices && ))
 
         fclose(meshfile);
         goto readmeshfilesuccess;
@@ -122,37 +123,42 @@ int main(int argc, char *argv[])
         goto errorquit_glfw;
         readmeshfilesuccess:
     }
+    */
 
-    /*
-    GLuint VAO, VBO_vertex, EBO;
+    
+    GLuint VAO, VBO, EBO;
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
 
-    glGenBuffers(1, &VBO_vertex);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_vertex);
+    static const float vertices[] =
+    {
+        -0.5, -0.5, 0,
+        0, 0.5, 0,
+        0.5, -0.5, 0
+    };
+    static const int indices[] =
+    {
+        0, 1, 2
+    };
+
+    glGenBuffers(1, &VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, NULL);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, NULL);
     glEnableVertexAttribArray(0);
 
     glGenBuffers(1, &EBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-    */
 
     // ==========================================================================================
-
-    // ==========================================================================================
-
-    //glUniform1i(glGetUniformLocation(prog, "font"), 0);
-    //glBindTexture(GL_TEXTURE_1D, font);
-    //glActiveTexture(GL_TEXTURE0);
 
     glClearColor(0, 0, 0, 1);
     while (!glfwWindowShouldClose(w))
     {
         glClear(GL_COLOR_BUFFER_BIT);
 
-        //glDrawElements(GL_TRIANGLES, sizeof(indices), GL_UNSIGNED_INT, NULL);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
 
         skipdraw:
         glfwSwapBuffers(w);
