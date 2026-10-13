@@ -9,7 +9,7 @@ const char *vertexshadersource =
 
     "void main(void)\n"
     "{"
-        "gl_Position = proj * vec4(vpos, 1);\n"
+        "gl_Position = proj * vec4(vpos + vec3(0, 0, -5), 1);\n"
     "}"
 ;
 

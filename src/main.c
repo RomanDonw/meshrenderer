@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "mesh.h"
+#include "glmesh.h"
 #include "mat4.h"
 #include "shaders.h"
 
@@ -110,8 +111,11 @@ int main(int argc, char *argv[])
 
     Mesh *mesh = loadmesh("res/test.mesh");
     if (!mesh) { puts("error loading mesh"); goto errorquit_glfw; }
+
+    GLMesh *glmesh = glmesh_frommesh(mesh);
     freemesh(mesh);
-    
+    if (!glmesh) { puts("error creating (translating) OpenGL mesh from generic mesh"); goto errorquit_glfw; }
+
     GLuint VAO, VBO, EBO;
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
@@ -144,13 +148,18 @@ int main(int argc, char *argv[])
     {
         glClear(GL_COLOR_BUFFER_BIT);
 
-
-        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, NULL);
+        for (size_t i = 0; i < glmesh->surfacescount; i++)
+        {
+            glBindVertexArray(glmesh->surfaces[i].VAO);
+            glDrawElements(GL_TRIANGLES, glmesh->surfaces[i].triscount * 3, GL_UNSIGNED_INT, NULL);
+        }
 
         skipdraw:
         glfwSwapBuffers(w);
         glfwPollEvents();
     }
+
+    glmesh_free(glmesh);
 
     glfwTerminate();
     return 0;

@@ -97,8 +97,6 @@ Mesh *loadmesh(const char *file)
 
 void freemesh(Mesh *mesh)
 {
-    if (!mesh) return;
-
     for (size_t i = 0; i < mesh->surfacescount; i++)
     {
         free(mesh->surfaces[i].poss);
