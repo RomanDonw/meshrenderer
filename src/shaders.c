@@ -5,9 +5,11 @@ const char *vertexshadersource =
 
     "layout (location = 0) in vec3 vpos;\n"
 
+    "uniform mat4 proj;\n"
+
     "void main(void)\n"
     "{"
-        "gl_Position = vec4(vpos, 1);\n"
+        "gl_Position = proj * vec4(vpos, 1);\n"
     "}"
 ;
 

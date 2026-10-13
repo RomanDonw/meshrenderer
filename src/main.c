@@ -9,14 +9,30 @@
 #include <string.h>
 
 #include "mesh.h"
+#include "mat4.h"
 #include "shaders.h"
 
-static void onresize(GLFWwindow *window, int width, int height)
-{ glViewport(0, 0, width > 0 ? width : 1, height > 0 ? height : 1); }
 static bool isshadercompilationsuccessful(GLuint shader);
 static GLchar *getshadercompilelog(GLuint shader);
 
 #define GLDEBUG() (printf("OpenGL error %u at %llu:%s in function %s\n", glGetError(), __LINE__, __FILE__, __func__))
+#define PI 3.14159265358979323846
+#define RAD(x) (((x) / 180.0) * PI)
+
+static GLint u_proj;
+static void onresize(GLFWwindow *window, int width, int height)
+{
+    int w = width > 0 ? width : 1;
+    int h = height > 0 ? height : 1;
+    glViewport(0, 0, w, h);
+
+    if (u_proj >= 0)
+    {
+        mat4f projm;
+        mat4f_perspective(projm, RAD(45), (float)width / (float)height, 0.01, 1000);
+        glUniformMatrix4fv(u_proj, 1, GL_TRUE, projm);
+    }
+}
 
 int main(int argc, char *argv[])
 {
@@ -88,6 +104,8 @@ int main(int argc, char *argv[])
 
     }
 
+    u_proj = glGetUniformLocation(prog, "proj");
+
     // ==========================================================================================
 
     Mesh *mesh = loadmesh("res/test.mesh");
@@ -100,9 +118,9 @@ int main(int argc, char *argv[])
 
     static const float vertices[] =
     {
-        -0.5, -0.5, 0,
-        0, 0.5, 0,
-        0.5, -0.5, 0
+        -0.5, -0.5, -5,
+        0, 0.5, -5,
+        0.5, -0.5, -5
     };
     static const int indices[] =
     {
@@ -126,7 +144,8 @@ int main(int argc, char *argv[])
     {
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, NULL);
 
         skipdraw:
         glfwSwapBuffers(w);
