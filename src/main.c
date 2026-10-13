@@ -15,6 +15,7 @@
 
 static bool isshadercompilationsuccessful(GLuint shader);
 static GLchar *getshadercompilelog(GLuint shader);
+static char loadGLTexture(GLuint *texture, const char *file);
 
 #define GLDEBUG() (printf("OpenGL error %u at %llu:%s in function %s\n", glGetError(), __LINE__, __FILE__, __func__))
 #define PI 3.14159265358979323846
@@ -106,6 +107,7 @@ int main(int argc, char *argv[])
     }
 
     u_proj = glGetUniformLocation(prog, "proj");
+    GLint u_tex_albedo = glGetUniformLocation(prog, "albedo");
 
     // ==========================================================================================
 
@@ -142,6 +144,8 @@ int main(int argc, char *argv[])
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
     // ==========================================================================================
+
+    //glActiveTexture(GL_TEXTURE0);
 
     glClearColor(0, 0, 0, 1);
     while (!glfwWindowShouldClose(w))
@@ -185,4 +189,27 @@ static char *getshadercompilelog(GLuint shader)
     char *ret = malloc(length);
     glGetShaderInfoLog(shader, length, NULL, ret);
     return ret;
+}
+
+static char loadGLTexture(GLuint *texture, const char *file)
+{
+    int x, y, ch;
+    void *data = stbi_load(file, &x, &y, &ch, 0);
+    if (!data) return 1;
+
+    if (x <= 0 || y <= 0 || ch < 3 || ch > 4) { stbi_image_free(data); return 1; }
+
+    glGenTextures(1, texture);
+    glBindTexture(GL_TEXTURE_2D, *texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, ch > 3 ? GL_RGBA8 : GL_RGB8, x, y, 0, ch > 3 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);
+    stbi_image_free(data);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+ 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return 0;
 }
