@@ -11,7 +11,7 @@ Mesh *loadmesh(const char *file)
 
     char sig[4];
     if (fread(sig, sizeof(sig), 1, f) < 1) goto errorquit_afteropenfile;
-    if (!memcmp(sig, "MESH", 4)) goto errorquit_afteropenfile;
+    if (memcmp(sig, "MESH", 4)) goto errorquit_afteropenfile;
 
     uint16_t ver;
     if (fread(&ver, sizeof(ver), 1, f) < 1) goto errorquit_afteropenfile;
@@ -28,14 +28,13 @@ Mesh *loadmesh(const char *file)
     
     for (; ret->surfacescount < (size_t)surfcountminusone + 1; ret->surfacescount++)
     {
-        uint32_t objcountminusone;
-        if (fread(&objcountminusone, sizeof(objcountminusone), 1, f) < 1) goto errorquit_afterallocmesh;
-        uint32_t triscountminusone;
-        if (fread(&triscountminusone, sizeof(triscountminusone), 1, f) < 1) goto errorquit_afterallocmesh;
+        size_t objscount;
+        {
+            uint32_t objcountminusone;
+            if (fread(&objcountminusone, sizeof(objcountminusone), 1, f) < 1) goto errorquit_afterallocmesh;
+            objscount = (size_t)objcountminusone + 1;
+        }
 
-        // ================================
-
-        size_t objscount = (size_t)objcountminusone + 1;
         vec3f *poss = malloc(objscount * sizeof(vec3f));
         if (!poss) goto errorquit_afterallocmesh;
         vec2f *uvs = malloc(objscount * sizeof(vec2f));
@@ -49,7 +48,13 @@ Mesh *loadmesh(const char *file)
 
         // ================================
 
-        size_t triscount = (size_t)triscountminusone + 1;
+        size_t triscount;
+        {
+            uint32_t triscountminusone;
+            if (fread(&triscountminusone, sizeof(triscountminusone), 1, f) < 1) goto errorquit_afterallocuvs;
+            triscount = (size_t)triscountminusone + 1;
+        }
+        
         tri *tris = malloc(triscount * sizeof(tri));
         if (!tris) goto errorquit_afterallocuvs;
 
@@ -80,6 +85,8 @@ Mesh *loadmesh(const char *file)
             free(poss);
         goto errorquit_afterallocmesh;    
     }
+
+    return ret;
 
     errorquit_afterallocmesh:
         freemesh(ret);

@@ -8,6 +8,7 @@
 #include <stb_image.h>
 #include <string.h>
 
+#include "mesh.h"
 #include "shaders.h"
 
 static void onresize(GLFWwindow *window, int width, int height)
@@ -88,6 +89,10 @@ int main(int argc, char *argv[])
     }
 
     // ==========================================================================================
+
+    Mesh *mesh = loadmesh("res/test.mesh");
+    if (!mesh) { puts("error loading mesh"); goto errorquit_glfw; }
+    freemesh(mesh);
     
     GLuint VAO, VBO, EBO;
     glGenVertexArrays(1, &VAO);
