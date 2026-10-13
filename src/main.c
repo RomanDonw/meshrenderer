@@ -88,43 +88,6 @@ int main(int argc, char *argv[])
     }
 
     // ==========================================================================================
-
-    /*
-    float *meshvertices, *meshUVs;
-    uint32_t *meshindices;
-    uint32_t meshverticescount, meshUVscount, meshindicescount;
-    {
-        FILE *meshfile = fopen("res/map.ucmesh", "rb");
-        if (!meshfile) { puts("unable to open map mesh file"); goto errorquit_glfw; }
-
-        char sig[6];
-        if (!fread(sig, sizeof(sig), 1, meshfile) || ferror(meshfile) || feof(meshfile)) goto readmesherror_generic;
-        if (memcmp(sig, "UCMESH", 6)) { puts("invalid signature"); goto readmesherror_generic; }
-
-        uint16_t version;
-        if (!fread(&version, sizeof(version), 1, meshfile) || ferror(meshfile) || feof(meshfile)) goto readmesherror_generic;
-        if (version != 67) { puts("incorrect format version (must be 67)"); goto readmesherror_generic; }
-
-        uint32_t vertexcount;
-        if (!fread(&vertexcount, sizeof(vertexcount), 1, meshfile) || ferror(meshfile) || feof(meshfile)) goto readmesherror_generic;
-        uint32_t tricount;
-        if (!fread(&tricount, sizeof(tricount), 1, meshfile) || ferror(meshfile) || feof(meshfile)) goto readmesherror_generic;
-
-        meshvertices = malloc(vertexcount * 3 * sizeof(float));
-        meshUVs = malloc(vertexcount * 2 * sizeof(float));
-        meshindices = malloc(tricount * 3 * sizeof(uint32_t));
-        if (!(meshvertices && ))
-
-        fclose(meshfile);
-        goto readmeshfilesuccess;
-        readmesherror_generic:
-            puts("error parsing mesh");
-            fclose(meshfile);
-        goto errorquit_glfw;
-        readmeshfilesuccess:
-    }
-    */
-
     
     GLuint VAO, VBO, EBO;
     glGenVertexArrays(1, &VAO);
