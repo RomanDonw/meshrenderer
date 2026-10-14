@@ -24,6 +24,9 @@ static char loadGLTexture(GLuint *texture, const char *file);
 #define PI 3.14159265358979323846
 #define RAD(x) (((x) / 180.0) * PI)
 
+#define WIN_WIDTH 800
+#define WIN_HEIGHT 600
+
 static GLint u_proj;
 static void onresize(GLFWwindow *window, int width, int height)
 {
@@ -39,8 +42,14 @@ static void onresize(GLFWwindow *window, int width, int height)
     }
 }
 
-#define WIN_WIDTH 800
-#define WIN_HEIGHT 600
+
+#define DEFAULT_SPEED 1.0
+static float speed = DEFAULT_SPEED;
+static void onscroll(GLFWwindow *w, double x, double y)
+{
+    float s = speed + y / 5;
+    speed = s > 0 ? s : 0;
+}
 
 int main(int argc, char *argv[])
 {
@@ -59,7 +68,9 @@ int main(int argc, char *argv[])
     glfwMakeContextCurrent(w);
 
     if (!gladLoadGL(glfwGetProcAddress)) { puts("error loading OpenGL context through GLAD"); goto errorquit_glfw;  }
+
     glfwSetFramebufferSizeCallback(w, onresize);
+    glfwSetScrollCallback(w, onscroll);
 
     // ==========================================================================================
     
@@ -115,6 +126,8 @@ int main(int argc, char *argv[])
     }
 
     u_proj = glGetUniformLocation(prog, "proj");
+    onresize(w, WIN_WIDTH, WIN_HEIGHT);
+
     GLint u_view = glGetUniformLocation(prog, "view");
     GLint u_tex_albedo = glGetUniformLocation(prog, "albedo");
 
@@ -225,19 +238,21 @@ int main(int argc, char *argv[])
             vec3f_norm2(up);
 
             {
-                vec3f vec3;
-                if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) { vec3f_muls(vec3, front, 10 * deltatime);  vec3f_sub2(campos, vec3); }
-                if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) { vec3f_muls(vec3, front, 10 * deltatime);  vec3f_add2(campos, vec3); }
-                if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) { vec3f_muls(vec3, right, 10 * deltatime);  vec3f_sub2(campos, vec3); }
-                if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) { vec3f_muls(vec3, right, 10 * deltatime);  vec3f_add2(campos, vec3); }
-            }
+                if (glfwGetMouseButton(w, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS) speed = DEFAULT_SPEED;
 
-            /*
-            printf("%15f%15f%15f%15f\n", mat[0], mat[1], mat[2], mat[3]);
-            printf("%15f%15f%15f%15f\n", mat[4], mat[5], mat[6], mat[7]);
-            printf("%15f%15f%15f%15f\n", mat[8], mat[9], mat[10], mat[11]);
-            printf("%15f%15f%15f%15f\n\n", mat[12], mat[13], mat[14], mat[15]);
-            */
+                float speedfactor;
+                if (glfwGetKey(w, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) speedfactor = 3;
+                else if (glfwGetKey(w, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(w, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) speedfactor = 0.3;
+                else speedfactor = 1;
+
+                float factor = 10 * deltatime * speedfactor * speed;
+
+                vec3f vec3;
+                if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) { vec3f_muls(vec3, front, factor);  vec3f_sub2(campos, vec3); }
+                if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) { vec3f_muls(vec3, front, factor);  vec3f_add2(campos, vec3); }
+                if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) { vec3f_muls(vec3, right, factor);  vec3f_sub2(campos, vec3); }
+                if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) { vec3f_muls(vec3, right, factor);  vec3f_add2(campos, vec3); }
+            }
             
             mat4f_lookat(mat, campos, right, up, front);
             glUniformMatrix4fv(u_view, 1, GL_TRUE, mat);
