@@ -7,7 +7,10 @@
 #include <stdbool.h>
 #include <stb_image.h>
 #include <string.h>
+#include <math.h>
 
+#include "vec2.h"
+#include "vec3.h"
 #include "mesh.h"
 #include "glmesh.h"
 #include "mat4.h"
@@ -36,8 +39,13 @@ static void onresize(GLFWwindow *window, int width, int height)
     }
 }
 
+#define WIN_WIDTH 800
+#define WIN_HEIGHT 600
+
 int main(int argc, char *argv[])
 {
+    if (argc < 2) { puts("specify path to mesh"); return 1; }
+
     // ==========================================================================================
 
     if (!glfwInit()) { puts("failed to initialize GLFW"); return 1; }
@@ -47,7 +55,7 @@ int main(int argc, char *argv[])
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     GLFWwindow *w;
-    if (!(w = glfwCreateWindow(800, 600, "Mesh renderer", NULL, NULL))) { puts("error creating window"); goto errorquit_glfw; }
+    if (!(w = glfwCreateWindow(WIN_WIDTH, WIN_HEIGHT, "Mesh renderer", NULL, NULL))) { puts("error creating window"); goto errorquit_glfw; }
     glfwMakeContextCurrent(w);
 
     if (!gladLoadGL(glfwGetProcAddress)) { puts("error loading OpenGL context through GLAD"); goto errorquit_glfw;  }
@@ -107,11 +115,12 @@ int main(int argc, char *argv[])
     }
 
     u_proj = glGetUniformLocation(prog, "proj");
+    GLint u_view = glGetUniformLocation(prog, "view");
     GLint u_tex_albedo = glGetUniformLocation(prog, "albedo");
 
     // ==========================================================================================
 
-    Mesh *mesh = loadmesh("res/test.mesh");
+    Mesh *mesh = loadmesh(argv[1]);
     if (!mesh) { puts("error loading mesh"); goto errorquit_glfw; }
 
     GLMesh *glmesh = glmesh_frommesh(mesh);
@@ -155,21 +164,91 @@ int main(int argc, char *argv[])
 
     // ==========================================================================================
 
-    glUniform1ui(u_tex_albedo, 0);
+    glUniform1i(u_tex_albedo, 0);
     glBindTexture(GL_TEXTURE_2D, tex);
     glActiveTexture(GL_TEXTURE0);
 
+    glfwSetCursorPos(w, WIN_WIDTH / 2.0, WIN_HEIGHT / 2.0);
+    glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+    glEnable(GL_DEPTH_TEST);
+
     glClearColor(0, 0, 0, 1);
+    double lastframetime = 0;
+    glfwSetTime(0);
     while (!glfwWindowShouldClose(w))
     {
-        glClear(GL_COLOR_BUFFER_BIT);
+        double currentframetime = glfwGetTime();
+        double deltatime = currentframetime - lastframetime;
+        lastframetime = currentframetime;
 
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        {
+            static vec3f campos = {0, 0, 0};
+            static vec2f camrot = {0, 0};
+
+            {
+                static double lastx = WIN_WIDTH / 2.0, lasty = WIN_HEIGHT / 2.0;
+                double x, y;
+                glfwGetCursorPos(w, &x, &y);
+                double deltax = x - lastx;
+                double deltay = y - lasty;
+                lastx = x;
+                lasty = y;
+
+                camrot[1] += deltax * 0.005;
+                camrot[0] += deltay * 0.005;
+
+                camrot[1] = fmodf(camrot[1], 2 * PI);
+                camrot[0] = fmodf(camrot[0], 2 * PI);
+
+                if (camrot[0] > RAD(80)) camrot[0] = RAD(80);
+                else if (camrot[0] < -RAD(80)) camrot[0] = -RAD(80);
+            }
+
+            mat4f mat;
+            {
+                mat4f_rotatey(mat, camrot[1]);
+                mat4f t;
+                mat4f_rotatex(t, camrot[0]);
+                mat4f_mulm2(mat, t);
+            }
+
+            vec4f front = {0, 0, -1, 0}, right = {1, 0, 0, 0}, up = {0, 1, 0, 0};
+            mat4f_mulv2(front, mat);
+            mat4f_mulv2(right, mat);
+            mat4f_mulv2(up, mat);
+
+            vec3f_norm2(front);
+            vec3f_norm2(right);
+            vec3f_norm2(up);
+
+            {
+                vec3f vec3;
+                if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) { vec3f_muls(vec3, front, 10 * deltatime);  vec3f_sub2(campos, vec3); }
+                if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) { vec3f_muls(vec3, front, 10 * deltatime);  vec3f_add2(campos, vec3); }
+                if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) { vec3f_muls(vec3, right, 10 * deltatime);  vec3f_sub2(campos, vec3); }
+                if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) { vec3f_muls(vec3, right, 10 * deltatime);  vec3f_add2(campos, vec3); }
+            }
+
+            /*
+            printf("%15f%15f%15f%15f\n", mat[0], mat[1], mat[2], mat[3]);
+            printf("%15f%15f%15f%15f\n", mat[4], mat[5], mat[6], mat[7]);
+            printf("%15f%15f%15f%15f\n", mat[8], mat[9], mat[10], mat[11]);
+            printf("%15f%15f%15f%15f\n\n", mat[12], mat[13], mat[14], mat[15]);
+            */
+            
+            mat4f_lookat(mat, campos, right, up, front);
+            glUniformMatrix4fv(u_view, 1, GL_TRUE, mat);
+        }
+        
         for (size_t i = 0; i < glmesh->surfacescount; i++)
         {
             glBindVertexArray(glmesh->surfaces[i].VAO);
             glDrawElements(GL_TRIANGLES, glmesh->surfaces[i].triscount * 3, GL_UNSIGNED_INT, NULL);
         }
-
+        
         skipdraw:
         glfwSwapBuffers(w);
         glfwPollEvents();
@@ -209,11 +288,12 @@ static char loadGLTexture(GLuint *texture, const char *file)
     void *data = stbi_load(file, &x, &y, &ch, 0);
     if (!data) return 1;
 
-    if (x <= 0 || y <= 0 || ch < 3 || ch > 4) { stbi_image_free(data); return 1; }
+    if (x <= 0 || y <= 0 || ch > 4 || ch < 3) { stbi_image_free(data); return 1; }
 
     glGenTextures(1, texture);
     glBindTexture(GL_TEXTURE_2D, *texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, ch > 3 ? GL_RGBA8 : GL_RGB8, x, y, 0, ch > 3 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, ch == 4 ? GL_RGBA8 : GL_RGB8, x, y, 0, ch == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);
     stbi_image_free(data);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);

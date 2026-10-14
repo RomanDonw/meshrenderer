@@ -9,11 +9,13 @@ const char *vertexshadersource =
     "out vec2 uv;\n"
 
     "uniform mat4 proj;\n"
+    "uniform mat4 view;\n"
 
     "void main(void)\n"
     "{"
         "uv = vuv;\n"
-        "gl_Position = proj * vec4(vpos + vec3(0, 0, -5), 1);\n"
+        "vec3 pos = vpos * vec3(0.0254);\n"
+        "gl_Position = proj * view * vec4(pos.x, pos.y, pos.z, 1);\n"
     "}"
 ;
 

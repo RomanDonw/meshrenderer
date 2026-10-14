@@ -3,7 +3,7 @@
 
 #include <string.h>
 
-typedef float vec4f[3];
+typedef float vec4f[4];
 
 static inline void vec4f_copy(float * restrict dst, const float * restrict src) { memcpy(dst, src, sizeof(vec4f)); }
 
