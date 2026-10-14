@@ -118,6 +118,16 @@ int main(int argc, char *argv[])
     freemesh(mesh);
     if (!glmesh) { puts("error creating (translating) OpenGL mesh from generic mesh"); goto errorquit_glfw; }
 
+    GLuint tex;
+    if (loadGLTexture(&tex, "res/C3A2A_TRANS1.png"))
+    {
+        puts("failed loading texture res/C3A2A_TRANS1.png");
+        glmesh_free(glmesh);
+        goto errorquit_glfw;
+    }
+
+    // ==========================================================================================
+
     GLuint VAO, VBO, EBO;
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
@@ -145,7 +155,9 @@ int main(int argc, char *argv[])
 
     // ==========================================================================================
 
-    //glActiveTexture(GL_TEXTURE0);
+    glUniform1ui(u_tex_albedo, 0);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glActiveTexture(GL_TEXTURE0);
 
     glClearColor(0, 0, 0, 1);
     while (!glfwWindowShouldClose(w))
