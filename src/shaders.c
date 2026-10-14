@@ -11,10 +11,12 @@ const char *vertexshadersource =
     "uniform mat4 proj;\n"
     "uniform mat4 view;\n"
 
+    "uniform bool downscale;\n"
+
     "void main(void)\n"
     "{"
         "uv = vuv;\n"
-        "vec3 pos = vpos * vec3(0.0254);\n"
+        "vec3 pos = downscale ? vpos * vec3(0.0254) : vpos;\n"
         "gl_Position = proj * view * vec4(pos.x, pos.y, pos.z, 1);\n"
     "}"
 ;

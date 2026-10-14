@@ -8,6 +8,7 @@
 #include <stb_image.h>
 #include <string.h>
 #include <math.h>
+#include <getopt.h>
 
 #include "vec2.h"
 #include "vec3.h"
@@ -53,7 +54,30 @@ static void onscroll(GLFWwindow *w, double x, double y)
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2) { puts("specify path to mesh"); return 1; }
+    const char *meshpath = NULL;
+    bool downscale = false;
+    {
+        int p;
+        while ((p = getopt(argc, argv, "m:d")) != -1)
+        {
+            switch (p)
+            {
+                case 'm':
+                    meshpath = optarg;
+                    break;
+
+                case 'd':
+                    downscale = true;
+                    break;
+            }
+        }
+    }
+
+    if (!meshpath)
+    {
+        puts("specify path to mesh through -m parameter");
+        return 1;
+    }
 
     // ==========================================================================================
 
@@ -130,10 +154,13 @@ int main(int argc, char *argv[])
 
     GLint u_view = glGetUniformLocation(prog, "view");
     GLint u_tex_albedo = glGetUniformLocation(prog, "albedo");
+    GLint u_downscale = glGetUniformLocation(prog, "downscale");
+    
+    glUniform1ui(u_downscale, downscale);
 
     // ==========================================================================================
 
-    Mesh *mesh = loadmesh(argv[1]);
+    Mesh *mesh = loadmesh(meshpath);
     if (!mesh) { puts("error loading mesh"); goto errorquit_glfw; }
 
     GLMesh *glmesh = glmesh_frommesh(mesh);
