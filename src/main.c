@@ -44,7 +44,7 @@ static void onresize(GLFWwindow *window, int width, int height)
 }
 
 
-#define DEFAULT_SPEED 1.0
+#define DEFAULT_SPEED 2.0
 static float speed = DEFAULT_SPEED;
 static void onscroll(GLFWwindow *w, double x, double y)
 {
@@ -272,7 +272,7 @@ int main(int argc, char *argv[])
                 else if (glfwGetKey(w, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(w, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) speedfactor = 0.3;
                 else speedfactor = 1;
 
-                float factor = 10 * deltatime * speedfactor * speed;
+                float factor = 5 * deltatime * speedfactor * speed;
 
                 vec3f vec3;
                 if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) { vec3f_muls(vec3, front, factor);  vec3f_sub2(campos, vec3); }
