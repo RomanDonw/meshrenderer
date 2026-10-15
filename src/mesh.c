@@ -15,7 +15,7 @@ Mesh *loadmesh(const char *file)
 
     uint16_t ver;
     if (fread(&ver, sizeof(ver), 1, f) < 1) goto errorquit_afteropenfile;
-    if (ver) goto errorquit_afteropenfile;
+    if (ver != 1) goto errorquit_afteropenfile;
     
     uint16_t surfcountminusone;
     if (fread(&surfcountminusone, sizeof(surfcountminusone), 1, f) < 1) goto errorquit_afteropenfile;
@@ -28,15 +28,24 @@ Mesh *loadmesh(const char *file)
     
     for (; ret->surfacescount < (size_t)surfcountminusone + 1; ret->surfacescount++)
     {
+        uint8_t namesize;
+        if (fread(&namesize, sizeof(namesize), 1, f) < 1) goto errorquit_afterallocmesh;
+        void *name = NULL;
+        if (namesize)
+        {
+            if (!(name = malloc(namesize))) goto errorquit_afterallocmesh;
+            if (fread(name, namesize, 1, f) < 1) goto errorquit_afterallocname;
+        }
+
         size_t objscount;
         {
             uint32_t objcountminusone;
-            if (fread(&objcountminusone, sizeof(objcountminusone), 1, f) < 1) goto errorquit_afterallocmesh;
+            if (fread(&objcountminusone, sizeof(objcountminusone), 1, f) < 1) goto errorquit_afterallocname;
             objscount = (size_t)objcountminusone + 1;
         }
 
         vec3f *poss = malloc(objscount * sizeof(vec3f));
-        if (!poss) goto errorquit_afterallocmesh;
+        if (!poss) goto errorquit_afterallocname;
         vec2f *uvs = malloc(objscount * sizeof(vec2f));
         if (!uvs) goto errorquit_afterallocposs;
 
@@ -69,6 +78,8 @@ Mesh *loadmesh(const char *file)
         // ================================
 
         Surface *s = ret->surfaces + ret->surfacescount;
+        s->name = name;
+        s->namesize = namesize;
         s->poss = poss;
         s->uvs = uvs;
         s->tris = tris;
@@ -83,6 +94,8 @@ Mesh *loadmesh(const char *file)
             free(uvs);
         errorquit_afterallocposs:
             free(poss);
+        errorquit_afterallocname:
+            free(name);
         goto errorquit_afterallocmesh;    
     }
 
@@ -97,8 +110,11 @@ Mesh *loadmesh(const char *file)
 
 void freemesh(Mesh *mesh)
 {
+    if (!mesh) return;
+
     for (size_t i = 0; i < mesh->surfacescount; i++)
     {
+        free(mesh->surfaces[i].name);
         free(mesh->surfaces[i].poss);
         free(mesh->surfaces[i].uvs);
         free(mesh->surfaces[i].tris);

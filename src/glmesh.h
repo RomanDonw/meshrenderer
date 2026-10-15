@@ -8,6 +8,9 @@
 
 struct GLMeshSurface
 {
+    size_t namesize;
+    unsigned char *name; // not zero-terminated string.
+
     GLuint VAO, VBO_VERTEX, VBO_UV, EBO;
     size_t triscount;
 } typedef GLMeshSurface;

@@ -27,11 +27,12 @@ const char *fragmentshadersource =
     "in vec2 uv;\n"
     "out vec4 FragColor;\n"
 
-    "uniform sampler2D albedo;"
+    "uniform sampler2D albedo;\n"
+    "uniform bool flipv;\n"
 
     "void main(void)\n"
     "{\n"
         //"FragColor = vec4(1, 1, 1, 1);\n"
-        "FragColor = texture(albedo, uv);\n"
+        "FragColor = texture(albedo, vec2(uv.x, flipv ? 1 - fract(uv.y) : uv.y));\n"
     "}"
 ;

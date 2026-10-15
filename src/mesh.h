@@ -10,6 +10,9 @@ typedef unsigned int tri[3];
 
 struct Surface
 {
+    size_t namesize;
+    unsigned char *name; // not zero-terminated string.
+
     vec3f *poss;
     vec2f *uvs;
     size_t verticescount;

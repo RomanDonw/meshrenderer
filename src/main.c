@@ -9,6 +9,7 @@
 #include <string.h>
 #include <math.h>
 #include <getopt.h>
+#include <ctype.h>
 
 #include "vec2.h"
 #include "vec3.h"
@@ -19,7 +20,7 @@
 
 static bool isshadercompilationsuccessful(GLuint shader);
 static GLchar *getshadercompilelog(GLuint shader);
-static char loadGLTexture(GLuint *texture, const char *file);
+static char loadGLtexture(GLuint *texture, const char *file);
 
 #define GLDEBUG() (printf("OpenGL error %u at %llu:%s in function %s\n", glGetError(), __LINE__, __FILE__, __func__))
 #define PI 3.14159265358979323846
@@ -54,11 +55,11 @@ static void onscroll(GLFWwindow *w, double x, double y)
 
 int main(int argc, char *argv[])
 {
-    const char *meshpath = NULL;
-    bool downscale = false;
+    const char *meshpath = NULL, *texspath = NULL;
+    bool downscale = false, flipv = false;
     {
         int p;
-        while ((p = getopt(argc, argv, "m:d")) != -1)
+        while ((p = getopt(argc, argv, "m:dt:v")) != -1)
         {
             switch (p)
             {
@@ -69,6 +70,14 @@ int main(int argc, char *argv[])
                 case 'd':
                     downscale = true;
                     break;
+
+                case 't':
+                    texspath = optarg;
+                    break;
+
+                case 'v':
+                    flipv = true;
+                    break;
             }
         }
     }
@@ -76,6 +85,12 @@ int main(int argc, char *argv[])
     if (!meshpath)
     {
         puts("specify path to mesh through -m parameter");
+        return 1;
+    }
+
+    if (!texspath)
+    {
+        puts("specify path to textures folder through -t parameter");
         return 1;
     }
 
@@ -155,8 +170,10 @@ int main(int argc, char *argv[])
     GLint u_view = glGetUniformLocation(prog, "view");
     GLint u_tex_albedo = glGetUniformLocation(prog, "albedo");
     GLint u_downscale = glGetUniformLocation(prog, "downscale");
+    GLint u_flipv = glGetUniformLocation(prog, "flipv");
     
     glUniform1ui(u_downscale, downscale);
+    glUniform1ui(u_flipv, flipv);
 
     // ==========================================================================================
 
@@ -167,10 +184,44 @@ int main(int argc, char *argv[])
     freemesh(mesh);
     if (!glmesh) { puts("error creating (translating) OpenGL mesh from generic mesh"); goto errorquit_glfw; }
 
+    // ==========================================================================================
+
+    GLuint *texs = malloc(glmesh->surfacescount * sizeof(GLuint));
+    if (!texs) { puts("memory allocation failed"); glmesh_free(glmesh); goto errorquit_glfw; }
+    memset(texs, 0, glmesh->surfacescount * sizeof(GLuint));
+
+    {
+        size_t texspathlen = strlen(texspath);
+        size_t texpathsize = texspathlen + 256 + 4;
+        char *texpath = malloc(texpathsize);
+        if (!texpath) { puts("memory allocation failed"); glmesh_free(glmesh); goto errorquit_glfw; }
+
+        memcpy(texpath, texspath, texspathlen);
+
+        for (size_t i = 0; i < glmesh->surfacescount; i++)
+        {
+            size_t namesize = glmesh->surfaces[i].namesize > 255 ? 255 : glmesh->surfaces[i].namesize;
+            for (size_t j = 0; j < namesize; j++)
+            {
+                *(texpath + texspathlen + j) = /*tolower*/(*(glmesh->surfaces[i].name + j));
+            }
+            
+            memcpy(texpath + texspathlen + namesize, ".png", 4);
+            *(texpath + texspathlen + namesize + 4) = 0;
+
+            if (loadGLtexture(texs + i, texpath)) printf("failed to load texture %s\n", texpath);
+        }
+
+        free(texpath);
+    }
+
+    // ==========================================================================================
+
     GLuint tex;
-    if (loadGLTexture(&tex, "res/C3A2A_TRANS1.png"))
+    if (loadGLtexture(&tex, "res/C3A2A_TRANS1.png"))
     {
         puts("failed loading texture res/C3A2A_TRANS1.png");
+        free(texs);
         glmesh_free(glmesh);
         goto errorquit_glfw;
     }
@@ -205,8 +256,6 @@ int main(int argc, char *argv[])
     // ==========================================================================================
 
     glUniform1i(u_tex_albedo, 0);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glActiveTexture(GL_TEXTURE0);
 
     glfwSetCursorPos(w, WIN_WIDTH / 2.0, WIN_HEIGHT / 2.0);
     glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -221,8 +270,6 @@ int main(int argc, char *argv[])
         double currentframetime = glfwGetTime();
         double deltatime = currentframetime - lastframetime;
         lastframetime = currentframetime;
-
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
         {
             static vec3f campos = {0, 0, 0};
@@ -284,14 +331,20 @@ int main(int argc, char *argv[])
             mat4f_lookat(mat, campos, right, up, front);
             glUniformMatrix4fv(u_view, 1, GL_TRUE, mat);
         }
+
+        // ==========================================================================================
+
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
         for (size_t i = 0; i < glmesh->surfacescount; i++)
         {
+            glBindTexture(GL_TEXTURE_2D, texs[i] ? texs[i] : tex);
+            glActiveTexture(GL_TEXTURE0);
+
             glBindVertexArray(glmesh->surfaces[i].VAO);
             glDrawElements(GL_TRIANGLES, glmesh->surfaces[i].triscount * 3, GL_UNSIGNED_INT, NULL);
         }
         
-        skipdraw:
         glfwSwapBuffers(w);
         glfwPollEvents();
     }
@@ -300,7 +353,7 @@ int main(int argc, char *argv[])
 
     glfwTerminate();
     return 0;
-
+    
     errorquit_glfw:
         glfwTerminate();
     return 1;
@@ -324,7 +377,7 @@ static char *getshadercompilelog(GLuint shader)
     return ret;
 }
 
-static char loadGLTexture(GLuint *texture, const char *file)
+static char loadGLtexture(GLuint *texture, const char *file)
 {
     int x, y, ch;
     void *data = stbi_load(file, &x, &y, &ch, 0);

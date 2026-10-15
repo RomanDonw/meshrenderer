@@ -13,6 +13,11 @@ GLMesh *glmesh_frommesh(const Mesh *mesh)
     
     for (size_t i = 0; i < ret->surfacescount; i++)
     {
+        ret->surfaces[i].name = malloc(mesh->surfaces[i].namesize);
+        if (!ret->surfaces[i].name) goto errorquit;
+        memcpy(ret->surfaces[i].name, mesh->surfaces[i].name, mesh->surfaces[i].namesize);
+        
+        ret->surfaces[i].namesize = mesh->surfaces[i].namesize;
         ret->surfaces[i].triscount = mesh->surfaces[i].triscount;
 
         glGenVertexArrays(1, &ret->surfaces[i].VAO);
@@ -40,12 +45,20 @@ GLMesh *glmesh_frommesh(const Mesh *mesh)
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     
     return ret;
+
+    errorquit:
+        glmesh_free(ret);
+    return NULL;
 }
 
 void glmesh_free(GLMesh *mesh)
 {
+    if (!mesh) return;
+
     for (size_t i = 0; i < mesh->surfacescount; i++)
     {
+        free(mesh->surfaces[i].name);
+
         glDeleteBuffers(1, &mesh->surfaces[i].EBO);
         glDeleteBuffers(1, &mesh->surfaces[i].VBO_UV);
         glDeleteBuffers(1, &mesh->surfaces[i].VBO_VERTEX);
