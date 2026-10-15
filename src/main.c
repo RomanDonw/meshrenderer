@@ -269,16 +269,19 @@ int main(int argc, char *argv[])
 
                 float speedfactor;
                 if (glfwGetKey(w, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) speedfactor = 3;
-                else if (glfwGetKey(w, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(w, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) speedfactor = 0.3;
+                else if (glfwGetKey(w, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) speedfactor = 0.3;
                 else speedfactor = 1;
 
                 float factor = 5 * deltatime * speedfactor * speed;
 
+                static const vec3f worldup = {0, 1, 0};
                 vec3f vec3;
-                if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) { vec3f_muls(vec3, front, factor);  vec3f_sub2(campos, vec3); }
-                if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) { vec3f_muls(vec3, front, factor);  vec3f_add2(campos, vec3); }
-                if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) { vec3f_muls(vec3, right, factor);  vec3f_sub2(campos, vec3); }
-                if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) { vec3f_muls(vec3, right, factor);  vec3f_add2(campos, vec3); }
+                if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) { vec3f_muls(vec3, front, factor); vec3f_sub2(campos, vec3); }
+                if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) { vec3f_muls(vec3, front, factor); vec3f_add2(campos, vec3); }
+                if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) { vec3f_muls(vec3, right, factor); vec3f_sub2(campos, vec3); }
+                if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) { vec3f_muls(vec3, right, factor); vec3f_add2(campos, vec3); }
+                if (glfwGetKey(w, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) { vec3f_muls(vec3, worldup, factor); vec3f_sub2(campos, vec3); }
+                if (glfwGetKey(w, GLFW_KEY_SPACE) == GLFW_PRESS) { vec3f_muls(vec3, worldup, factor); vec3f_add2(campos, vec3); }
             }
             
             mat4f_lookat(mat, campos, right, up, front);
