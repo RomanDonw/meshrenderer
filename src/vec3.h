@@ -118,4 +118,18 @@ static inline void vec3f_divs2(float *dst, float scalar)
     dst[2] /= scalar;
 }
 
+static inline void vec3f_neg(float *dst, const float *src)
+{
+    dst[0] = -src[0];
+    dst[1] = -src[1];
+    dst[2] = -src[2];
+}
+
+static inline void vec3f_neg2(float *dst)
+{
+    dst[0] = -dst[0];
+    dst[1] = -dst[1];
+    dst[2] = -dst[2];
+}
+
 #endif
