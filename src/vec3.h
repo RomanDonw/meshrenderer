@@ -8,8 +8,7 @@ typedef float vec3f[3];
 
 static inline void vec3f_zero(vec3f vec) { memset(vec, 0, sizeof(vec3f)); }
 static inline void vec3f_copy(float * restrict dst, const float * restrict src) { memcpy(dst, src, sizeof(vec3f)); }
-static inline float vec3f_dot(const float *a, const float *b)
-{ return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+static inline float vec3f_dot(const float *a, const float *b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
 
 static inline void vec3f_add(float *dst, const float *a, const float *b)
 {

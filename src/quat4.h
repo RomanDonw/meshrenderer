@@ -5,96 +5,25 @@
 #include <math.h>
 
 #include "vec3.h"
+#include "vec4.h"
 
 typedef float quat4f[4]; // [s, i, j, k]
 
 static inline void quat4f_zero(quat4f q) { memset(q, 0, sizeof(quat4f)); }
 static inline void quat4f_copy(float * restrict dst, const float * restrict src) { memcpy(dst, src, sizeof(quat4f)); }
-static inline float quat4f_dot(const float *a, const float *b)
-{ return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]; }
+static inline float quat4f_len(const float *quat) { return vec4f_len(quat); }
+static inline float quat4f_dot(const float *a, const float *b) { return vec4f_dot(a, b); }
 
-static inline float quat4f_len(const float *quat)
-{ return sqrtf(quat[0] * quat[0] + quat[1] * quat[1] + quat[2] * quat[2] + quat[3] * quat[3]); }
-
-static inline void quat4f_add(float *out, const float *a, const float *b)
-{
-    out[0] = a[0] + b[0];
-    out[1] = a[1] + b[1];
-    out[2] = a[2] + b[2];
-    out[3] = a[3] + b[3];
-}
-
-static inline void quat4f_add2(float *out, const float *in)
-{
-    out[0] += in[0];
-    out[1] += in[1];
-    out[2] += in[2];
-    out[3] += in[3];
-}
-
-static inline void quat4f_sub(float *out, const float *a, const float *b)
-{
-    out[0] = a[0] - b[0];
-    out[1] = a[1] - b[1];
-    out[2] = a[2] - b[2];
-    out[3] = a[3] - b[3];
-}
-
-static inline void quat4f_sub2(float *out, const float *in)
-{
-    out[0] -= in[0];
-    out[1] -= in[1];
-    out[2] -= in[2];
-    out[3] -= in[3];
-}
-
-static inline void quat4f_sub2r(float *out, const float *in)
-{
-    out[0] = in[0] - out[0];
-    out[1] = in[1] - out[1];
-    out[2] = in[2] - out[2];
-    out[3] = in[3] - out[3];
-}
-
-static inline void quat4f_muls(float *out, const float *in, float scalar)
-{
-    out[0] = in[0] * scalar;
-    out[1] = in[1] * scalar;
-    out[2] = in[2] * scalar;
-    out[3] = in[3] * scalar;
-}
-
-static inline void quat4f_muls2(float *out, float scalar)
-{
-    out[0] *= scalar;
-    out[1] *= scalar;
-    out[2] *= scalar;
-    out[3] *= scalar;
-}
-
-static inline void quat4f_divs(float *out, const float *in, float scalar)
-{
-    out[0] = in[0] / scalar;
-    out[1] = in[1] / scalar;
-    out[2] = in[2] / scalar;
-    out[3] = in[3] / scalar;
-}
-
-static inline void quat4f_divs2(float *out, float scalar)
-{
-    out[0] /= scalar;
-    out[1] /= scalar;
-    out[2] /= scalar;
-    out[3] /= scalar;
-}
-
-static inline void quat4f_divs2r(float *out, float scalar)
-{
-    out[0] = scalar / out[0];
-    out[1] = scalar / out[1];
-    out[2] = scalar / out[2];
-    out[3] = scalar / out[3];
-}
+static inline void quat4f_add(float *out, const float *a, const float *b) { vec4f_add(out, a, b); }
+static inline void quat4f_add2(float *out, const float *in) { vec4f_add2(out, in); }
+static inline void quat4f_sub(float *out, const float *a, const float *b) { vec4f_sub(out, a, b); }
+static inline void quat4f_sub2(float *out, const float *in) { vec4f_sub2(out, in); }
+static inline void quat4f_sub2r(float *out, const float *in) { vec4f_sub2r(out, in); }
+static inline void quat4f_muls(float *out, const float *in, float scalar) { vec4f_muls(out, in, scalar); }
+static inline void quat4f_muls2(float *out, float scalar) { vec4f_muls2(out, scalar); }
+static inline void quat4f_divs(float *out, const float *in, float scalar) { vec4f_divs(out, in, scalar); }
+static inline void quat4f_divs2(float *out, float scalar) { vec4f_divs2(out, scalar); }
+static inline void quat4f_divs2r(float *out, float scalar) { vec4f_divs2r(out, scalar); }
 
 static inline void quat4f_mulq(float * restrict out, const float * restrict a, const float * restrict b)
 {
