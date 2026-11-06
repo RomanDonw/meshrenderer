@@ -17,6 +17,7 @@
 #include "glmesh.h"
 #include "mat4.h"
 #include "shaders.h"
+#include "quat4.h"
 
 static bool isshadercompilationsuccessful(GLuint shader);
 static GLchar *getshadercompilelog(GLuint shader);
@@ -270,7 +271,7 @@ int main(int argc, char *argv[])
         double currentframetime = glfwGetTime();
         double deltatime = currentframetime - lastframetime;
         lastframetime = currentframetime;
-        
+
         {
             static vec3f campos = {0, 0, 0};
             static vec2f camrot = {0, 0};
@@ -346,6 +347,14 @@ int main(int argc, char *argv[])
 
             glBindVertexArray(glmesh->surfaces[i].VAO);
             glDrawElements(GL_TRIANGLES, glmesh->surfaces[i].triscount * 3, GL_UNSIGNED_INT, NULL);
+        }
+
+        {
+            static vec3f mdlpos = {0};
+            static quat4f mdlrot = {0};
+            static vec3f mdlscl = {1, 1, 1};
+            
+            
         }
         
         glfwSwapBuffers(w);
