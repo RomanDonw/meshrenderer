@@ -61,14 +61,36 @@ static inline void vec3f_norm2(float *vec)
     vec[2] /= len;
 }
 
-static inline void vec3f_mulv(float *dst, const float *a, const float *b)
+static inline void vec3f_mulv(float * restrict dst, const float * restrict a, const float * restrict b)
+{
+    dst[0] = a[1] * b[2] - a[2] * b[1];
+    dst[1] = a[2] * b[0] - a[0] * b[2];
+    dst[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+static inline void vec3f_mulv2(float *dst, const float *src)
+{
+    vec3f ret;
+    vec3f_mulv(ret, dst, src);
+    vec3f_copy(dst, ret);
+}
+
+static inline void vec3f_mulv2r(float *dst, const float *src)
+{
+    vec3f ret;
+    vec3f_mulv(ret, src, dst);
+    vec3f_copy(dst, ret);
+}
+
+// *vc - Vector by Component multiplication
+static inline void vec3f_mulvc(float *dst, const float *a, const float *b)
 {
     dst[0] = a[0] * b[0];
     dst[1] = a[1] * b[1];
     dst[2] = a[2] * b[2];
 }
 
-static inline void vec3f_mulv2(float *dst, const float *src)
+static inline void vec3f_mulvc2(float *dst, const float *src)
 {
     dst[0] *= src[0];
     dst[1] *= src[1];
