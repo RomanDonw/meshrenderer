@@ -24,6 +24,8 @@ static inline void quat4f_muls2(float *out, float scalar) { vec4f_muls2(out, sca
 static inline void quat4f_divs(float *out, const float *in, float scalar) { vec4f_divs(out, in, scalar); }
 static inline void quat4f_divs2(float *out, float scalar) { vec4f_divs2(out, scalar); }
 static inline void quat4f_divs2r(float *out, float scalar) { vec4f_divs2r(out, scalar); }
+static inline void quat4f_norm(float *out, const float *in) { vec4f_norm(out, in); }
+static inline void quat4f_norm2(float *out) { vec4f_norm2(out); }
 
 static inline void quat4f_mulq(float * restrict out, const float * restrict a, const float * restrict b)
 {
@@ -55,24 +57,6 @@ static inline void quat4f_conj(float *out, const float *in)
 
 static inline void quat4f_conj2(float *out) { vec3f_neg2(out + 1); }
 
-static inline void quat4f_norm(float *out, const float *in)
-{
-    float l = quat4f_len(in);
-    out[0] = in[0] / l;
-    out[1] = in[1] / l;
-    out[2] = in[2] / l;
-    out[3] = in[3] / l;
-}
-
-static inline void quat4f_norm2(float *out)
-{
-    float l = quat4f_len(out);
-    out[0] = out[0] / l;
-    out[1] = out[1] / l;
-    out[2] = out[2] / l;
-    out[3] = out[3] / l;
-}
-
 static inline void quat4f_rotate(quat4f out, const vec3f axis, float angle)
 {
     out[0] = cos(angle * 0.5);
@@ -91,6 +75,26 @@ static inline void quat4f_inv2(float *out)
     float lsqr = out[0] * out[0] + out[1] * out[1] + out[2] * out[2] + out[3] * out[3];
     quat4f_conj2(out);
     quat4f_divs2(out, lsqr);
+}
+
+static inline void quat4f_mulv(float * restrict outvec3, const float * restrict quat, const float * restrict invec3)
+{
+    vec3f t;
+    vec3f_cross(t, quat + 1, invec);
+    vec3f_muls2(t, 2);
+
+    vec3f_cross(outvec3, quat + 1, t);
+    vec3f_muls2(t, *quat);
+    vec3f_add2(outvec3, t);
+    
+    vec3f_add2(outvec3, invec3);
+}
+
+static inline void quat4f_mulv2(float *vec3, const float *quat)
+{
+    vec3f ret;
+    quat4f_mulv(ret, quat, vec3);
+    vec3f_copy(vec3, quat);
 }
 
 #endif

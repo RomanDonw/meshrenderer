@@ -89,4 +89,22 @@ static inline void vec4f_divs2r(float *out, float scalar)
     out[3] = scalar / out[3];
 }
 
+static inline void vec4f_norm(float *out, const float *in)
+{
+    float l = vec4f_len(in);
+    out[0] = in[0] / l;
+    out[1] = in[1] / l;
+    out[2] = in[2] / l;
+    out[3] = in[3] / l;
+}
+
+static inline void vec4f_norm2(float *out)
+{
+    float l = vec4f_len(out);
+    out[0] = out[0] / l;
+    out[1] = out[1] / l;
+    out[2] = out[2] / l;
+    out[3] = out[3] / l;
+}
+
 #endif
