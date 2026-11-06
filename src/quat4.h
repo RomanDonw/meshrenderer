@@ -80,7 +80,7 @@ static inline void quat4f_inv2(float *out)
 static inline void quat4f_mulv(float * restrict outvec3, const float * restrict quat, const float * restrict invec3)
 {
     vec3f t;
-    vec3f_cross(t, quat + 1, invec);
+    vec3f_cross(t, quat + 1, invec3);
     vec3f_muls2(t, 2);
 
     vec3f_cross(outvec3, quat + 1, t);
@@ -96,5 +96,66 @@ static inline void quat4f_mulv2(float *vec3, const float *quat)
     quat4f_mulv(ret, quat, vec3);
     vec3f_copy(vec3, quat);
 }
+
+// suffixes: t - translate, r - rotate, s - scale.
+// all this functions assumes that quaternion was normalized.
+    
+#define QUAT4_TOMAT_BASE(scalex, scaley, scalez) \
+    float i2 = quat[1] * quat[1];\
+    float j2 = quat[2] * quat[2];\
+    float k2 = quat[3] * quat[3];\
+    \
+    float ij = quat[1] * quat[2];\
+    float jk = quat[2] * quat[3];\
+    float ki = quat[3] * quat[1];\
+    \
+    float si = quat[0] * quat[1];\
+    float sj = quat[0] * quat[2];\
+    float sk = quat[0] * quat[3];\
+    \
+    vec3f_zero(mat + 12);\
+    mat[15] = 1;\
+    \
+    mat[0] = 1 - 2 * (j2 + k2) * scalex;\
+    mat[1] = 2 * (ij + sk) * scalex;\
+    mat[2] = 2 * (ki - sj) * scalex;\
+    \
+    mat[4] = 2 * (ij - sk) * scaley;\
+    mat[5] = 1 - 2 * (i2 + k2) * scaley;\
+    mat[6] = 2 * (jk + si) * scaley;\
+    \
+    mat[8] = 2 * (ki + sj) * scalez;\
+    mat[9] = 2 * (jk - si) * scalez;\
+    mat[10] = 1 - 2 * (i2 + j2) * scalez
+
+static inline void quat4f_toRmat(float * restrict mat, const float * restrict quat)
+{
+    QUAT4_TOMAT_BASE(1, 1, 1);
+    mat[3] = mat[7] = mat[11] = 0;
+}
+
+static inline void quat4f_toRSmat(float * restrict mat, const float * restrict quat, const float * restrict scale)
+{
+    QUAT4_TOMAT_BASE(scale[0], scale[1], scale[2]);
+    mat[3] = mat[7] = mat[11] = 0;
+}
+
+static inline void quat4f_toTRmat(float * restrict mat, const float * restrict translate, const float * restrict quat)
+{
+    QUAT4_TOMAT_BASE(1, 1, 1);
+    mat[3] = translate[0];
+    mat[7] = translate[1];
+    mat[11] = translate[2];
+}
+
+static inline void quat4f_toTRSmat(float * restrict mat, const float * restrict translate, const float * restrict quat, const float * restrict scale)
+{
+    QUAT4_TOMAT_BASE(scale[0], scale[1], scale[2]);
+    mat[3] = translate[0];
+    mat[7] = translate[1];
+    mat[11] = translate[2];
+}
+
+#undef QUAT4_TOMAT_BASE
 
 #endif
