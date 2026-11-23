@@ -16,8 +16,7 @@ const char *vertexshadersource =
     "void main(void)\n"
     "{"
         "uv = vuv;\n"
-        "vec3 pos = downscale ? vpos * vec3(0.0254) : vpos;\n"
-        "gl_Position = proj * view * vec4(pos.x, pos.y, pos.z, 1);\n"
+        "gl_Position = proj * view * vec4(downscale ? vpos * vec3(0.0254) : vpos, 1);\n"
     "}"
 ;
 
@@ -29,11 +28,11 @@ const char *fragmentshadersource =
 
     "uniform sampler2D albedo;\n"
     "uniform sampler2D noisetex;"
+    
     "uniform bool flipv;\n"
 
     "void main(void)\n"
     "{\n"
-        //"FragColor = vec4(1, 1, 1, 1);\n"
         "FragColor = texture(albedo, vec2(uv.x, flipv ? 1 - fract(uv.y) : uv.y)) + vec4(vec3((texture(noisetex, uv).r * 2 - 1) * 0.1), 1);\n"
     "}"
 ;
