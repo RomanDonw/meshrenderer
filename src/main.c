@@ -10,6 +10,7 @@
 #include <math.h>
 #include <getopt.h>
 #include <ctype.h>
+#include <time.h>
 
 #include "vec2.h"
 #include "vec3.h"
@@ -52,6 +53,9 @@ static void onscroll(GLFWwindow *w, double x, double y)
     float s = speed + y / 5;
     speed = s > 0 ? s : 0;
 }
+
+#define NOISETEX_WIDTH 256
+#define NOISETEX_HEIGHT 256
 
 int main(int argc, char *argv[])
 {
@@ -255,12 +259,32 @@ int main(int argc, char *argv[])
 
     // ==========================================================================================
 
+    float *noisetexdata = malloc(NOISETEX_WIDTH * NOISETEX_HEIGHT * sizeof(float));
+    if (!noisetexdata) { puts("memory allocation failed"); goto errorquit_glfw; }
+    
+    
+    GLuint noisetex;
+    glGenTextures(1, &noisetex);
+    glBindTexture(GL_TEXTURE_2D, noisetex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, NOISETEX_WIDTH, NOISETEX_HEIGHT, 0, GL_RED, GL_FLOAT, noisetexdata);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+ 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    // ==========================================================================================
+
     glUniform1i(u_tex_albedo, 0);
+    glUniform1i(glGetUniformLocation(prog, "noisetex"), 1);
 
     glfwSetCursorPos(w, WIN_WIDTH / 2.0, WIN_HEIGHT / 2.0);
     glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     glEnable(GL_DEPTH_TEST);
+
+    srand(time(NULL));
 
     glClearColor(0, 0, 0, 1);
     double lastframetime = 0;
@@ -337,12 +361,23 @@ int main(int argc, char *argv[])
 
         // ==========================================================================================
 
+        for (size_t j = 0; j < NOISETEX_HEIGHT; j++)
+            for (size_t i = 0; i < NOISETEX_WIDTH; i++)
+                noisetexdata[j * NOISETEX_WIDTH + i] = rand() / (float)RAND_MAX;
+        glBindTexture(GL_TEXTURE_2D, noisetex);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, NOISETEX_WIDTH, NOISETEX_HEIGHT, GL_RED, GL_FLOAT, noisetexdata);
+
+        // ==========================================================================================
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
         for (size_t i = 0; i < glmesh->surfacescount; i++)
         {
-            glBindTexture(GL_TEXTURE_2D, texs[i] ? texs[i] : tex);
             glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texs[i] ? texs[i] : tex);
+
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, noisetex);
 
             glBindVertexArray(glmesh->surfaces[i].VAO);
             glDrawElements(GL_TRIANGLES, glmesh->surfaces[i].triscount * 3, GL_UNSIGNED_INT, NULL);
