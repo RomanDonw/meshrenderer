@@ -30,7 +30,8 @@ static char loadGLtexture(GLuint *texture, const char *file);
 #define WIN_WIDTH 800
 #define WIN_HEIGHT 600
 
-static GLint u_proj;
+static GLint u_proj = -1;
+static GLuint fbtexcolor = 0, rbdepth = 0;
 static void onresize(GLFWwindow *window, int width, int height)
 {
     int w = width > 0 ? width : 1;
@@ -42,6 +43,20 @@ static void onresize(GLFWwindow *window, int width, int height)
         mat4f projm;
         mat4f_perspective(projm, RAD(45), (float)width / (float)height, 0.01, 1000);
         glUniformMatrix4fv(u_proj, 1, GL_TRUE, projm);
+    }
+    
+    if (fbtexcolor)
+    {
+        glBindTexture(GL_TEXTURE_2D, fbtexcolor);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, w, h, 0, GL_RGB, GL_FLOAT, NULL);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    if (rbdepth)
+    {
+        glBindRenderbuffer(GL_RENDERBUFFER, rbdepth);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, w, h);
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
     }
 }
 
@@ -169,7 +184,6 @@ int main(int argc, char *argv[])
     }
 
     u_proj = glGetUniformLocation(prog, "proj");
-    onresize(w, WIN_WIDTH, WIN_HEIGHT);
 
     GLint u_view = glGetUniformLocation(prog, "view");
     GLint u_tex_albedo = glGetUniformLocation(prog, "albedo");
@@ -279,12 +293,31 @@ int main(int argc, char *argv[])
     glUniform1i(u_tex_albedo, 0);
     glUniform1i(glGetUniformLocation(prog, "noisetex"), 1);
 
-    glfwSetCursorPos(w, WIN_WIDTH / 2.0, WIN_HEIGHT / 2.0);
-    glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    GLuint fb;
+    glGenFramebuffers(1, &fb);
+    glBindFramebuffer(GL_FRAMEBUFFER, fb);
+    
+    GLuint fbcolor;
+    glGenTextures(1, &fbcolor);
+    glBindTexture(GL_TEXTURE_2D, fbcolor);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbcolor, 0);
+
+    glGenRenderbuffers(1, &rbdepth);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbdepth);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // ==========================================================================================
 
     glEnable(GL_DEPTH_TEST);
 
+    glfwSetCursorPos(w, WIN_WIDTH / 2.0, WIN_HEIGHT / 2.0);
+    glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
     srand(time(NULL));
+    onresize(w, WIN_WIDTH, WIN_HEIGHT);
 
     glClearColor(0, 0, 0, 1);
     double lastframetime = 0;
@@ -354,7 +387,7 @@ int main(int argc, char *argv[])
                 if (glfwGetKey(w, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) { vec3f_muls(vec3, worldup, factor); vec3f_sub2(campos, vec3); }
                 if (glfwGetKey(w, GLFW_KEY_SPACE) == GLFW_PRESS) { vec3f_muls(vec3, worldup, factor); vec3f_add2(campos, vec3); }
             }
-            
+
             mat4f_lookat(mat, campos, right, up, front);
             glUniformMatrix4fv(u_view, 1, GL_TRUE, mat);
         }
@@ -382,7 +415,7 @@ int main(int argc, char *argv[])
             glBindVertexArray(glmesh->surfaces[i].VAO);
             glDrawElements(GL_TRIANGLES, glmesh->surfaces[i].triscount * 3, GL_UNSIGNED_INT, NULL);
         }
-        
+
         glfwSwapBuffers(w);
         glfwPollEvents();
     }
