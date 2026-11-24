@@ -126,8 +126,6 @@ int main(int argc, char *argv[])
     glfwMakeContextCurrent(w);
 
     if (!gladLoadGL(glfwGetProcAddress)) { puts("error loading OpenGL context through GLAD"); goto errorquit_glfw;  }
-
-    glfwSetFramebufferSizeCallback(w, onresize);
     glfwSetScrollCallback(w, onscroll);
 
     // ==========================================================================================
@@ -271,12 +269,22 @@ int main(int argc, char *argv[])
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
+    struct
+    {
+        GLuint VAO, VBO, EBO;
+    } scrquad;
+    {
+        glGenVertexArrays(1, &scrquad.VAO);
+        glBindVertexArray(scrquad.VAO);
+        
+        
+    }
+
     // ==========================================================================================
 
     float *noisetexdata = malloc(NOISETEX_WIDTH * NOISETEX_HEIGHT * sizeof(float));
     if (!noisetexdata) { puts("memory allocation failed"); goto errorquit_glfw; }
-    
-    
+
     GLuint noisetex;
     glGenTextures(1, &noisetex);
     glBindTexture(GL_TEXTURE_2D, noisetex);
@@ -296,28 +304,33 @@ int main(int argc, char *argv[])
     GLuint fb;
     glGenFramebuffers(1, &fb);
     glBindFramebuffer(GL_FRAMEBUFFER, fb);
-    
-    GLuint fbcolor;
-    glGenTextures(1, &fbcolor);
-    glBindTexture(GL_TEXTURE_2D, fbcolor);
+
+    glGenTextures(1, &fbtexcolor);
+    glBindTexture(GL_TEXTURE_2D, fbtexcolor);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbcolor, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbtexcolor, 0);
 
     glGenRenderbuffers(1, &rbdepth);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbdepth);
+
+    puts(glCheckFramebufferStatus(GL_FRAMEBUFFER) ? "true" : "false");
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // ==========================================================================================
 
-    glEnable(GL_DEPTH_TEST);
-
     glfwSetCursorPos(w, WIN_WIDTH / 2.0, WIN_HEIGHT / 2.0);
     glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     srand(time(NULL));
-    onresize(w, WIN_WIDTH, WIN_HEIGHT);
+    {
+        glfwSetFramebufferSizeCallback(w, onresize);
+
+        int width, height;
+        glfwGetFramebufferSize(w, &width, &height);
+        onresize(w, width, height);
+    }
 
     glClearColor(0, 0, 0, 1);
     double lastframetime = 0;
@@ -402,6 +415,8 @@ int main(int argc, char *argv[])
 
         // ==========================================================================================
 
+        glBindFramebuffer(GL_FRAMEBUFFER, fb);
+        glEnable(GL_DEPTH_TEST);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
         for (size_t i = 0; i < glmesh->surfacescount; i++)
@@ -415,6 +430,9 @@ int main(int argc, char *argv[])
             glBindVertexArray(glmesh->surfaces[i].VAO);
             glDrawElements(GL_TRIANGLES, glmesh->surfaces[i].triscount * 3, GL_UNSIGNED_INT, NULL);
         }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        
 
         glfwSwapBuffers(w);
         glfwPollEvents();
