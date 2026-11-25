@@ -1,6 +1,8 @@
 #include "shaders.h"
 
-const char *vertexshadersource =
+const shadersourcepair modelshaders =
+{
+    .vertex = ""
     "#version 330 core\n"
 
     "layout (location = 0) in vec3 vpos;\n"
@@ -17,10 +19,11 @@ const char *vertexshadersource =
     "{"
         "uv = vuv;\n"
         "gl_Position = proj * view * vec4(downscale ? vpos * vec3(0.0254) : vpos, 1);\n"
-    "}"
-;
+    "}",
 
-const char *fragmentshadersource =
+    // ========================================
+
+    .fragment = ""
     "#version 330 core\n"
 
     "in vec2 uv;\n"
@@ -59,4 +62,36 @@ const char *fragmentshadersource =
 
         "FragColor = vec4(tr, tg, tb, pix.a);\n"
     "}"
-;
+};
+
+const shadersourcepair screenshaders =
+{
+    .vertex = ""
+    "#version 330 core\n"
+    
+    "layout (location = 0) in vec2 pos;\n"
+
+    "out vec2 uv;\n"
+
+    "void main(void)\n"
+    "{\n"
+        "gl_Position = vec4(pos, 0, 1);\n"
+        "uv = (pos + vec2(1)) * vec2(0.5);\n"
+    "}",
+
+    // ========================================
+
+    .fragment = ""
+    "#version 330 core\n"
+
+    "in vec2 uv;"
+    "out vec4 FragmentColor;\n"
+
+    "uniform sampler2D screen;\n"
+    
+    "void main(void)\n"
+    "{\n"
+        "vec4 f = texture(screen, uv);\n"
+        "FragmentColor = f * vec4(0.3);\n"
+    "}"
+};

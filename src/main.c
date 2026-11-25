@@ -1,5 +1,6 @@
-#include <glad.h>
+#define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
+#include <glad.h>
 #include <stdio.h>
 #include <getopt.h>
 #include <stdlib.h>
@@ -18,6 +19,7 @@
 #include "glmesh.h"
 #include "mat4.h"
 #include "shaders.h"
+#include "util.h"
 
 static bool isshadercompilationsuccessful(GLuint shader);
 static GLchar *getshadercompilelog(GLuint shader);
@@ -44,7 +46,7 @@ static void onresize(GLFWwindow *window, int width, int height)
         mat4f_perspective(projm, RAD(45), (float)width / (float)height, 0.01, 1000);
         glUniformMatrix4fv(u_proj, 1, GL_TRUE, projm);
     }
-    
+
     if (fbtexcolor)
     {
         glBindTexture(GL_TEXTURE_2D, fbtexcolor);
@@ -71,6 +73,8 @@ static void onscroll(GLFWwindow *w, double x, double y)
 
 #define NOISETEX_WIDTH 256
 #define NOISETEX_HEIGHT 256
+
+static const char *memallocfailstr = "memory allocation failed";
 
 int main(int argc, char *argv[])
 {
@@ -129,67 +133,61 @@ int main(int argc, char *argv[])
     glfwSetScrollCallback(w, onscroll);
 
     // ==========================================================================================
-    
-    GLuint prog;
+
+    char *log;
+    GLuint modelprog = glCreateProgram();
+    if (shprog_addshader(modelprog, GL_VERTEX_SHADER, modelshaders.vertex, &log))
     {
-        GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vs, 1, &vertexshadersource, NULL);
-        glCompileShader(vs);
-        if (!isshadercompilationsuccessful(vs))
-        {
-            char *log = getshadercompilelog(vs);
-            printf("error compiling vertex shader:\n%s\n", log);
-            free(log);
-            goto errorquit_glfw;
-        }
-
-        GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fs, 1, &fragmentshadersource, NULL);
-        glCompileShader(fs);
-        if (!isshadercompilationsuccessful(fs))
-        {
-            char *log = getshadercompilelog(fs);
-            printf("error compiling fragment shader:\n%s\n", log);
-            free(log);
-            goto errorquit_glfw;
-        }
-
-        prog = glCreateProgram();
-        glAttachShader(prog, vs);
-        glAttachShader(prog, fs);
-        glLinkProgram(prog);
-        glUseProgram(prog);
-
-        GLint result;
-        glGetProgramiv(prog, GL_LINK_STATUS, &result);
-        if (!result)
-        {
-            GLint length;
-            glGetProgramiv(prog, GL_INFO_LOG_LENGTH, &length);
-            if (length > 0)
-            {
-                char *log = malloc(length);
-                if (log)
-                {
-                    glGetProgramInfoLog(prog, length, NULL, log);
-                    printf("error linking shader program:\n%s\n", log);
-                    free(log);
-                }
-                goto errorquit_glfw;
-            }
-        }
-
+        if (log) { printf("failed compiling vertex shader for model shader program:\n%s\n", log); free(log); }
+        else puts(memallocfailstr);
+        goto errorquit_glfw;
+    }
+    if (shprog_addshader(modelprog, GL_FRAGMENT_SHADER, modelshaders.fragment, &log))
+    {
+        if (log) { printf("failed compiling fragment shader for model shader program:\n%s\n", log); free(log); }
+        else puts(memallocfailstr);
+        goto errorquit_glfw;
+    }
+    if (shprog_link(modelprog, &log))
+    {
+        if (log) { printf("failed linking model shader program:\n%s\n", log); free(log); }
+        else puts(memallocfailstr);
+        goto errorquit_glfw;
     }
 
-    u_proj = glGetUniformLocation(prog, "proj");
+    u_proj = glGetUniformLocation(modelprog, "proj");
 
-    GLint u_view = glGetUniformLocation(prog, "view");
-    GLint u_tex_albedo = glGetUniformLocation(prog, "albedo");
-    GLint u_downscale = glGetUniformLocation(prog, "downscale");
-    GLint u_flipv = glGetUniformLocation(prog, "flipv");
+    GLint u_view = glGetUniformLocation(modelprog, "view");
+    GLint u_tex_albedo = glGetUniformLocation(modelprog, "albedo");
+    GLint u_downscale = glGetUniformLocation(modelprog, "downscale");
+    GLint u_flipv = glGetUniformLocation(modelprog, "flipv");
     
     glUniform1ui(u_downscale, downscale);
     glUniform1ui(u_flipv, flipv);
+
+    // ==========================================================================================
+
+    GLuint screenprog = glCreateProgram();
+    if (shprog_addshader(screenprog, GL_VERTEX_SHADER, screenshaders.vertex, &log))
+    {
+        if (log) { printf("failed compiling vertex shader for screen shader program:\n%s\n", log); free(log); }
+        else puts(memallocfailstr);
+        goto errorquit_glfw;
+    }
+    if (shprog_addshader(screenprog, GL_FRAGMENT_SHADER, screenshaders.fragment, &log))
+    {
+        if (log) { printf("failed compiling fragment shader for screen shader program:\n%s\n", log); free(log); }
+        else puts(memallocfailstr);
+        goto errorquit_glfw;
+    }
+    if (shprog_link(screenprog, &log))
+    {
+        if (log) { printf("failed linking screen shader program:\n%s\n", log); free(log); }
+        else puts(memallocfailstr);
+        goto errorquit_glfw;
+    }
+
+    glUniform1i(glGetUniformLocation(screenprog, "screen"), 0);
 
     // ==========================================================================================
 
@@ -203,14 +201,14 @@ int main(int argc, char *argv[])
     // ==========================================================================================
 
     GLuint *texs = malloc(glmesh->surfacescount * sizeof(GLuint));
-    if (!texs) { puts("memory allocation failed"); glmesh_free(glmesh); goto errorquit_glfw; }
+    if (!texs) { puts(memallocfailstr); glmesh_free(glmesh); goto errorquit_glfw; }
     memset(texs, 0, glmesh->surfacescount * sizeof(GLuint));
 
     {
         size_t texspathlen = strlen(texspath);
         size_t texpathsize = texspathlen + 256 + 4;
         char *texpath = malloc(texpathsize);
-        if (!texpath) { puts("memory allocation failed"); glmesh_free(glmesh); goto errorquit_glfw; }
+        if (!texpath) { puts(memallocfailstr); glmesh_free(glmesh); goto errorquit_glfw; }
 
         memcpy(texpath, texspath, texspathlen);
 
@@ -269,21 +267,47 @@ int main(int argc, char *argv[])
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
+    glBindVertexArray(0);
+
+    #if 0
     struct
     {
         GLuint VAO, VBO, EBO;
-    } scrquad;
+    } ndcquad;
     {
-        glGenVertexArrays(1, &scrquad.VAO);
-        glBindVertexArray(scrquad.VAO);
+        glGenVertexArrays(1, &ndcquad.VAO);
+        glBindVertexArray(ndcquad.VAO);
         
-        
+        static const float verts[] =
+        {
+            -1, -1,
+            -1, 1,
+            1, -1,
+            1, 1
+        };
+        glGenBuffers(1, &ndcquad.VBO);
+        glBindBuffer(GL_ARRAY_BUFFER, ndcquad.VBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), NULL);
+        glEnableVertexAttribArray(0);
+
+        static const unsigned int inds[] =
+        {
+            0, 1, 3,
+            0, 2, 3
+        };
+        glGenBuffers(1, &ndcquad.EBO);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ndcquad.EBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(inds), inds, GL_STATIC_DRAW);
+
+        glBindVertexArray(0);
     }
+    #endif
 
     // ==========================================================================================
 
     float *noisetexdata = malloc(NOISETEX_WIDTH * NOISETEX_HEIGHT * sizeof(float));
-    if (!noisetexdata) { puts("memory allocation failed"); goto errorquit_glfw; }
+    if (!noisetexdata) { puts(memallocfailstr); goto errorquit_glfw; }
 
     GLuint noisetex;
     glGenTextures(1, &noisetex);
@@ -299,7 +323,7 @@ int main(int argc, char *argv[])
     // ==========================================================================================
 
     glUniform1i(u_tex_albedo, 0);
-    glUniform1i(glGetUniformLocation(prog, "noisetex"), 1);
+    glUniform1i(glGetUniformLocation(modelprog, "noisetex"), 1);
 
     GLuint fb;
     glGenFramebuffers(1, &fb);
@@ -323,7 +347,6 @@ int main(int argc, char *argv[])
     glfwSetCursorPos(w, WIN_WIDTH / 2.0, WIN_HEIGHT / 2.0);
     glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-    srand(time(NULL));
     {
         glfwSetFramebufferSizeCallback(w, onresize);
 
@@ -332,6 +355,9 @@ int main(int argc, char *argv[])
         onresize(w, width, height);
     }
 
+    glCullFace(GL_BACK);
+
+    srand(time(NULL));
     glClearColor(0, 0, 0, 1);
     double lastframetime = 0;
     glfwSetTime(0);
@@ -410,29 +436,44 @@ int main(int argc, char *argv[])
         for (size_t j = 0; j < NOISETEX_HEIGHT; j++)
             for (size_t i = 0; i < NOISETEX_WIDTH; i++)
                 noisetexdata[j * NOISETEX_WIDTH + i] = rand() / (float)RAND_MAX;
+        glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, noisetex);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, NOISETEX_WIDTH, NOISETEX_HEIGHT, GL_RED, GL_FLOAT, noisetexdata);
 
         // ==========================================================================================
 
-        glBindFramebuffer(GL_FRAMEBUFFER, fb);
+        //glBindFramebuffer(GL_FRAMEBUFFER, fb);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glUseProgram(modelprog);
+        glDisable(GL_CULL_FACE);
         glEnable(GL_DEPTH_TEST);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        
+
         for (size_t i = 0; i < glmesh->surfacescount; i++)
         {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, texs[i] ? texs[i] : tex);
 
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, noisetex);
-
             glBindVertexArray(glmesh->surfaces[i].VAO);
             glDrawElements(GL_TRIANGLES, glmesh->surfaces[i].triscount * 3, GL_UNSIGNED_INT, NULL);
         }
 
+        // ======================================================
+
+        #if 0
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        
+        glUseProgram(screenprog);
+        glEnable(GL_CULL_FACE);
+        glDisable(GL_DEPTH_TEST);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, fbtexcolor);
+
+        glBindVertexArray(ndcquad.VAO);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
+        #endif
+
+        // ======================================================
 
         glfwSwapBuffers(w);
         glfwPollEvents();
@@ -446,24 +487,6 @@ int main(int argc, char *argv[])
     errorquit_glfw:
         glfwTerminate();
     return 1;
-}
-
-static bool isshadercompilationsuccessful(GLuint shader)
-{
-    GLint result;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &result);
-    return result;
-}
-
-static char *getshadercompilelog(GLuint shader)
-{
-    GLint length;
-    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
-    if (length <= 0) return NULL;
-
-    char *ret = malloc(length);
-    glGetShaderInfoLog(shader, length, NULL, ret);
-    return ret;
 }
 
 static char loadGLtexture(GLuint *texture, const char *file)
