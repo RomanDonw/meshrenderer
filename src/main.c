@@ -34,33 +34,33 @@ static char loadGLtexture(GLuint *texture, const char *file);
 
 static GLint u_proj = -1;
 static GLuint fbtexcolor = 0, rbdepth = 0, modelprog = 0;
+static unsigned int winwidth = 1, winheight = 1;
 static void onresize(GLFWwindow *window, int width, int height)
 {
-    int w = width > 0 ? width : 1;
-    int h = height > 0 ? height : 1;
-    glViewport(0, 0, w, h);
+    winwidth = width > 0 ? width : 1;
+    winheight = height > 0 ? height : 1;
 
     if (u_proj >= 0 && modelprog)
     {
         glUseProgram(modelprog);
         mat4f projm;
-        mat4f_perspective(projm, RAD(45), (float)width / (float)height, 0.01, 1000);
+        mat4f_perspective(projm, RAD(45), (float)winwidth / (float)winheight, 0.01, 1000);
         glUniformMatrix4fv(u_proj, 1, GL_TRUE, projm);
     }
 
-    if (fbtexcolor)
+    /*if (fbtexcolor)
     {
         glBindTexture(GL_TEXTURE_2D, fbtexcolor);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, w, h, 0, GL_RGB, GL_FLOAT, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, winwidth, winheight, 0, GL_RGB, GL_FLOAT, NULL);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     if (rbdepth)
     {
         glBindRenderbuffer(GL_RENDERBUFFER, rbdepth);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, w, h);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, winwidth, winheight);
         glBindRenderbuffer(GL_RENDERBUFFER, 0);
-    }
+    }*/
 }
 
 #define DEFAULT_SPEED 2.0
@@ -71,8 +71,8 @@ static void onscroll(GLFWwindow *w, double x, double y)
     speed = s > 0 ? s : 0;
 }
 
-#define NOISETEX_WIDTH 256
-#define NOISETEX_HEIGHT 256
+#define NOISETEX_WIDTH 800
+#define NOISETEX_HEIGHT 600
 
 static const char *memallocfailstr = "memory allocation failed";
 
@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
 
     glGenTextures(1, &fbtexcolor);
     glBindTexture(GL_TEXTURE_2D, fbtexcolor);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, 1, 1, 0, GL_RGB, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, 800, 600, 0, GL_RGB, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -338,7 +338,7 @@ int main(int argc, char *argv[])
 
     glGenRenderbuffers(1, &rbdepth);
     glBindRenderbuffer(GL_RENDERBUFFER, rbdepth);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, 1, 1);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, 800, 600);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbdepth);
 
     printf("framebuffer complete: %s\n", glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE ? "true" : "false");
@@ -441,6 +441,7 @@ int main(int argc, char *argv[])
         glDisable(GL_CULL_FACE);
         glEnable(GL_DEPTH_TEST);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glViewport(0, 0, 800, 600);
 
         for (size_t i = 0; i < glmesh->surfacescount; i++)
         {
@@ -457,6 +458,7 @@ int main(int argc, char *argv[])
         glUseProgram(screenprog);
         glEnable(GL_CULL_FACE);
         glDisable(GL_DEPTH_TEST);
+        glViewport(0, 0, winwidth, winheight);
 
         for (size_t j = 0; j < NOISETEX_HEIGHT; j++)
             for (size_t i = 0; i < NOISETEX_WIDTH; i++)
