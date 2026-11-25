@@ -158,12 +158,14 @@ int main(int argc, char *argv[])
     u_proj = glGetUniformLocation(modelprog, "proj");
 
     GLint u_view = glGetUniformLocation(modelprog, "view");
-    GLint u_tex_albedo = glGetUniformLocation(modelprog, "albedo");
     GLint u_downscale = glGetUniformLocation(modelprog, "downscale");
     GLint u_flipv = glGetUniformLocation(modelprog, "flipv");
-    
+
+    glUseProgram(modelprog);
     glUniform1ui(u_downscale, downscale);
     glUniform1ui(u_flipv, flipv);
+    glUniform1i(glGetUniformLocation(modelprog, "albedo"), 0);
+    glUniform1i(glGetUniformLocation(modelprog, "noisetex"), 1);
 
     // ==========================================================================================
 
@@ -187,6 +189,7 @@ int main(int argc, char *argv[])
         goto errorquit_glfw;
     }
 
+    glUseProgram(screenprog);
     glUniform1i(glGetUniformLocation(screenprog, "screen"), 0);
 
     // ==========================================================================================
@@ -321,9 +324,6 @@ int main(int argc, char *argv[])
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     // ==========================================================================================
-
-    glUniform1i(u_tex_albedo, 0);
-    glUniform1i(glGetUniformLocation(modelprog, "noisetex"), 1);
 
     GLuint fb;
     glGenFramebuffers(1, &fb);
