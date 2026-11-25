@@ -33,15 +33,16 @@ static char loadGLtexture(GLuint *texture, const char *file);
 #define WIN_HEIGHT 600
 
 static GLint u_proj = -1;
-static GLuint fbtexcolor = 0, rbdepth = 0;
+static GLuint fbtexcolor = 0, rbdepth = 0, modelprog = 0;
 static void onresize(GLFWwindow *window, int width, int height)
 {
     int w = width > 0 ? width : 1;
     int h = height > 0 ? height : 1;
     glViewport(0, 0, w, h);
 
-    if (u_proj >= 0)
+    if (u_proj >= 0 && modelprog)
     {
+        glUseProgram(modelprog);
         mat4f projm;
         mat4f_perspective(projm, RAD(45), (float)width / (float)height, 0.01, 1000);
         glUniformMatrix4fv(u_proj, 1, GL_TRUE, projm);
@@ -135,7 +136,7 @@ int main(int argc, char *argv[])
     // ==========================================================================================
 
     char *log;
-    GLuint modelprog = glCreateProgram();
+    modelprog = glCreateProgram();
     if (shprog_addshader(modelprog, GL_VERTEX_SHADER, modelshaders.vertex, &log))
     {
         if (log) { printf("failed compiling vertex shader for model shader program:\n%s\n", log); free(log); }
@@ -272,7 +273,6 @@ int main(int argc, char *argv[])
 
     glBindVertexArray(0);
 
-    #if 0
     struct
     {
         GLuint VAO, VBO, EBO;
@@ -290,13 +290,13 @@ int main(int argc, char *argv[])
         };
         glGenBuffers(1, &ndcquad.VBO);
         glBindBuffer(GL_ARRAY_BUFFER, ndcquad.VBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), NULL);
         glEnableVertexAttribArray(0);
 
         static const unsigned int inds[] =
         {
-            0, 1, 3,
+            3, 1, 0,
             0, 2, 3
         };
         glGenBuffers(1, &ndcquad.EBO);
@@ -305,7 +305,6 @@ int main(int argc, char *argv[])
 
         glBindVertexArray(0);
     }
-    #endif
 
     // ==========================================================================================
 
@@ -331,14 +330,19 @@ int main(int argc, char *argv[])
 
     glGenTextures(1, &fbtexcolor);
     glBindTexture(GL_TEXTURE_2D, fbtexcolor);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, 1, 1, 0, GL_RGB, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbtexcolor, 0);
 
     glGenRenderbuffers(1, &rbdepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, rbdepth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, 1, 1);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbdepth);
 
-    puts(glCheckFramebufferStatus(GL_FRAMEBUFFER) ? "true" : "false");
+    printf("framebuffer complete: %s\n", glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE ? "true" : "false");
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -355,10 +359,9 @@ int main(int argc, char *argv[])
         onresize(w, width, height);
     }
 
-    glCullFace(GL_BACK);
-
     srand(time(NULL));
     glClearColor(0, 0, 0, 1);
+    glCullFace(GL_BACK);
     double lastframetime = 0;
     glfwSetTime(0);
     while (!glfwWindowShouldClose(w))
@@ -366,6 +369,8 @@ int main(int argc, char *argv[])
         double currentframetime = glfwGetTime();
         double deltatime = currentframetime - lastframetime;
         lastframetime = currentframetime;
+
+        glUseProgram(modelprog);
         
         {
             static vec3f campos = {0, 0, 0};
@@ -442,9 +447,7 @@ int main(int argc, char *argv[])
 
         // ==========================================================================================
 
-        //glBindFramebuffer(GL_FRAMEBUFFER, fb);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glUseProgram(modelprog);
+        glBindFramebuffer(GL_FRAMEBUFFER, fb);
         glDisable(GL_CULL_FACE);
         glEnable(GL_DEPTH_TEST);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -460,7 +463,6 @@ int main(int argc, char *argv[])
 
         // ======================================================
 
-        #if 0
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glUseProgram(screenprog);
         glEnable(GL_CULL_FACE);
@@ -471,7 +473,6 @@ int main(int argc, char *argv[])
 
         glBindVertexArray(ndcquad.VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
-        #endif
 
         // ======================================================
 
