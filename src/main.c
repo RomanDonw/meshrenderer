@@ -63,7 +63,6 @@ static void onresize(GLFWwindow *window, int width, int height)
     }
 }
 
-
 #define DEFAULT_SPEED 2.0
 static float speed = DEFAULT_SPEED;
 static void onscroll(GLFWwindow *w, double x, double y)
@@ -166,7 +165,6 @@ int main(int argc, char *argv[])
     glUniform1ui(u_downscale, downscale);
     glUniform1ui(u_flipv, flipv);
     glUniform1i(glGetUniformLocation(modelprog, "albedo"), 0);
-    glUniform1i(glGetUniformLocation(modelprog, "noisetex"), 1);
 
     // ==========================================================================================
 
@@ -192,6 +190,7 @@ int main(int argc, char *argv[])
 
     glUseProgram(screenprog);
     glUniform1i(glGetUniformLocation(screenprog, "screen"), 0);
+    glUniform1i(glGetUniformLocation(screenprog, "noise"), 1);
 
     // ==========================================================================================
 
@@ -438,15 +437,6 @@ int main(int argc, char *argv[])
 
         // ==========================================================================================
 
-        for (size_t j = 0; j < NOISETEX_HEIGHT; j++)
-            for (size_t i = 0; i < NOISETEX_WIDTH; i++)
-                noisetexdata[j * NOISETEX_WIDTH + i] = rand() / (float)RAND_MAX;
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, noisetex);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, NOISETEX_WIDTH, NOISETEX_HEIGHT, GL_RED, GL_FLOAT, noisetexdata);
-
-        // ==========================================================================================
-
         glBindFramebuffer(GL_FRAMEBUFFER, fb);
         glDisable(GL_CULL_FACE);
         glEnable(GL_DEPTH_TEST);
@@ -467,6 +457,13 @@ int main(int argc, char *argv[])
         glUseProgram(screenprog);
         glEnable(GL_CULL_FACE);
         glDisable(GL_DEPTH_TEST);
+
+        for (size_t j = 0; j < NOISETEX_HEIGHT; j++)
+            for (size_t i = 0; i < NOISETEX_WIDTH; i++)
+                noisetexdata[j * NOISETEX_WIDTH + i] = rand() / (float)RAND_MAX;
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, noisetex);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, NOISETEX_WIDTH, NOISETEX_HEIGHT, GL_RED, GL_FLOAT, noisetexdata);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, fbtexcolor);
