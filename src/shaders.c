@@ -89,8 +89,9 @@ const shadersourcepair screenshaders =
         "float dist = abs((fract(-time * speed) * (1 + (linesz + padding) * 2) - linesz - padding) - uv.y);\n"
         "float factor = min(linesz, dist) / linesz;\n"
 
+        "float whnoiselvl = 0.05;\n"
         "float n0 = texture(noise, fract(uv) * (1.0 / 3.0) + vec2(0, 1 / 3)).r;\n"
-        "vec4 f = mix(vec4(n0, n0, n0, 1), texture(screen, uv), factor);\n"
+        "vec4 f = mix(vec4(n0, n0, n0, 1), texture(screen, uv) + vec4(vec3(n0), 0) * whnoiselvl, factor);\n"
 
         "float cy = dot(f.rgb, vec3(LUMA_R, LUMA_G, LUMA_B));\n"
         "float cu = COEFF_U * (f.b - cy);\n"
