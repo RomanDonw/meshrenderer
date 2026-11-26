@@ -210,6 +210,9 @@ int main(int argc, char *argv[])
     }
 
     glUseProgram(screenprog);
+
+    GLint u_time = glGetUniformLocation(screenprog, "time");
+
     glUniform1i(glGetUniformLocation(screenprog, "screen"), 0);
     glUniform1i(glGetUniformLocation(screenprog, "noise"), 1);
 
@@ -482,6 +485,8 @@ int main(int argc, char *argv[])
         glEnable(GL_CULL_FACE);
         glDisable(GL_DEPTH_TEST);
         glViewport(0, 0, winwidth, winheight);
+
+        glUniform1f(u_time, currentframetime);
 
         for (size_t j = 0; j < noisetexheight; j++)
             for (size_t i = 0; i < noisetexwidth; i++)
