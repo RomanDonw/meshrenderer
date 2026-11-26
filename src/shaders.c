@@ -30,7 +30,7 @@ const shadersourcepair modelshaders =
     "out vec4 FragmentColor;\n"
 
     "uniform sampler2D albedo;\n"
-    
+
     "uniform bool flipv;\n"
 
     "void main(void)\n"
@@ -71,7 +71,7 @@ const shadersourcepair screenshaders =
 
     "#define COEFF_U 0.492\n"
     "#define COEFF_V 0.877\n"
-    
+
     "void main(void)\n"
     "{\n"
         "vec4 f = texture(screen, uv);\n"

@@ -21,19 +21,19 @@
 #include "shaders.h"
 #include "util.h"
 
-static bool isshadercompilationsuccessful(GLuint shader);
-static GLchar *getshadercompilelog(GLuint shader);
 static char loadGLtexture(GLuint *texture, const char *file);
 
 #define GLDEBUG() (printf("OpenGL error %u at %llu:%s in function %s\n", glGetError(), __LINE__, __FILE__, __func__))
-#define PI 3.14159265358979323846
-#define RAD(x) (((x) / 180.0) * PI)
 
 #define WIN_WIDTH 800
 #define WIN_HEIGHT 600
 
-static GLint u_proj = -1;
-static GLuint fbtexcolor = 0, rbdepth = 0, modelprog = 0;
+static GLint u_proj = -1, modelprog = 0;
+static struct
+{
+    unsigned int width, height;
+    GLuint texcolor, rbdepth;
+} ppfb = {0}; // frame buffer related data for post-processing.
 static unsigned int winwidth = 1, winheight = 1;
 static void onresize(GLFWwindow *window, int width, int height)
 {
@@ -48,31 +48,31 @@ static void onresize(GLFWwindow *window, int width, int height)
         glUniformMatrix4fv(u_proj, 1, GL_TRUE, projm);
     }
 
-    /*if (fbtexcolor)
+    if (!ppfb.width || !ppfb.height)
     {
-        glBindTexture(GL_TEXTURE_2D, fbtexcolor);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, winwidth, winheight, 0, GL_RGB, GL_FLOAT, NULL);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
+        if (ppfb.texcolor)
+        {
+            glBindTexture(GL_TEXTURE_2D, ppfb.texcolor);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, winwidth, winheight, 0, GL_RGB, GL_FLOAT, NULL);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
 
-    if (rbdepth)
-    {
-        glBindRenderbuffer(GL_RENDERBUFFER, rbdepth);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, winwidth, winheight);
-        glBindRenderbuffer(GL_RENDERBUFFER, 0);
-    }*/
+        if (ppfb.rbdepth)
+        {
+            glBindRenderbuffer(GL_RENDERBUFFER, ppfb.rbdepth);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, winwidth, winheight);
+            glBindRenderbuffer(GL_RENDERBUFFER, 0);
+        }
+    }
 }
 
-#define DEFAULT_SPEED 2.0
-static float speed = DEFAULT_SPEED;
+#define DEFAULT_FLY_SPEED 2.0
+static float flyspeed = DEFAULT_FLY_SPEED;
 static void onscroll(GLFWwindow *w, double x, double y)
 {
-    float s = speed + y / 5;
-    speed = s > 0 ? s : 0;
+    float s = flyspeed + y / 5;
+    flyspeed = s > 0 ? s : 0;
 }
-
-#define NOISETEX_WIDTH 800
-#define NOISETEX_HEIGHT 600
 
 static const char *memallocfailstr = "memory allocation failed";
 
@@ -80,9 +80,16 @@ int main(int argc, char *argv[])
 {
     const char *meshpath = NULL, *texspath = NULL;
     bool downscale = false, flipv = false;
+    unsigned int noisetexwidth = 800, noisetexheight = 600;
     {
+        static const struct option longopts[] =
+        {
+            { .name = "framebufferSize", .has_arg = required_argument, .val = 256, .flag = NULL },
+            { .name = "noiseTextureSize", .has_arg = required_argument, .val = 257, .flag = NULL },
+            {0}
+        };
         int p;
-        while ((p = getopt(argc, argv, "m:dt:v")) != -1)
+        while ((p = getopt_long(argc, argv, "m:dt:vf:", longopts, NULL)) != -1)
         {
             switch (p)
             {
@@ -101,6 +108,16 @@ int main(int argc, char *argv[])
                 case 'v':
                     flipv = true;
                     break;
+
+                case 256:
+                    if (sscanf(optarg, "%u,%u", &ppfb.width, &ppfb.height) < 2)
+                    { puts("failed parsing option --framebufferSize"); return 1; }
+                    break;
+
+                case 257:
+                    if (sscanf(optarg, "%u,%u", &noisetexwidth, &noisetexheight) < 2)
+                    { puts("failed parsing option --noiseTextureSize"); return 1; }
+                    break;
             }
         }
     }
@@ -114,6 +131,12 @@ int main(int argc, char *argv[])
     if (!texspath)
     {
         puts("specify path to textures folder through -t parameter");
+        return 1;
+    }
+
+    if (!noisetexwidth || !noisetexheight)
+    {
+        puts("noise texture size must be positive non-zero value");
         return 1;
     }
 
@@ -155,15 +178,13 @@ int main(int argc, char *argv[])
         goto errorquit_glfw;
     }
 
-    u_proj = glGetUniformLocation(modelprog, "proj");
-
-    GLint u_view = glGetUniformLocation(modelprog, "view");
-    GLint u_downscale = glGetUniformLocation(modelprog, "downscale");
-    GLint u_flipv = glGetUniformLocation(modelprog, "flipv");
-
     glUseProgram(modelprog);
-    glUniform1ui(u_downscale, downscale);
-    glUniform1ui(u_flipv, flipv);
+
+    u_proj = glGetUniformLocation(modelprog, "proj");
+    GLint u_view = glGetUniformLocation(modelprog, "view");
+
+    glUniform1ui(glGetUniformLocation(modelprog, "downscale"), downscale);
+    glUniform1ui(glGetUniformLocation(modelprog, "flipv"), flipv);
     glUniform1i(glGetUniformLocation(modelprog, "albedo"), 0);
 
     // ==========================================================================================
@@ -245,6 +266,7 @@ int main(int argc, char *argv[])
 
     // ==========================================================================================
 
+    #if 0
     GLuint VAO, VBO, EBO;
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
@@ -271,6 +293,7 @@ int main(int argc, char *argv[])
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
     glBindVertexArray(0);
+    #endif
 
     struct
     {
@@ -307,13 +330,13 @@ int main(int argc, char *argv[])
 
     // ==========================================================================================
 
-    float *noisetexdata = malloc(NOISETEX_WIDTH * NOISETEX_HEIGHT * sizeof(float));
+    float *noisetexdata = malloc(noisetexwidth * noisetexheight * sizeof(float));
     if (!noisetexdata) { puts(memallocfailstr); goto errorquit_glfw; }
 
     GLuint noisetex;
     glGenTextures(1, &noisetex);
     glBindTexture(GL_TEXTURE_2D, noisetex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, NOISETEX_WIDTH, NOISETEX_HEIGHT, 0, GL_RED, GL_FLOAT, noisetexdata);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, noisetexwidth, noisetexheight, 0, GL_RED, GL_FLOAT, noisetexdata);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -327,41 +350,42 @@ int main(int argc, char *argv[])
     glGenFramebuffers(1, &fb);
     glBindFramebuffer(GL_FRAMEBUFFER, fb);
 
-    glGenTextures(1, &fbtexcolor);
-    glBindTexture(GL_TEXTURE_2D, fbtexcolor);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, 800, 600, 0, GL_RGB, GL_FLOAT, NULL);
+    glGenTextures(1, &ppfb.texcolor);
+    glBindTexture(GL_TEXTURE_2D, ppfb.texcolor);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, ppfb.width ? ppfb.width : 1, ppfb.height ? ppfb.height : 1, 0, GL_RGB, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbtexcolor, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ppfb.texcolor, 0);
 
-    glGenRenderbuffers(1, &rbdepth);
-    glBindRenderbuffer(GL_RENDERBUFFER, rbdepth);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, 800, 600);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbdepth);
+    glGenRenderbuffers(1, &ppfb.rbdepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, ppfb.rbdepth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, ppfb.width ? ppfb.width : 1, ppfb.height ? ppfb.height : 1);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, ppfb.rbdepth);
 
-    printf("framebuffer complete: %s\n", glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE ? "true" : "false");
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    printf("Framebuffer complete status: %s.\n", glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE ? "yes" : "no");
 
     // ==========================================================================================
-
-    glfwSetCursorPos(w, WIN_WIDTH / 2.0, WIN_HEIGHT / 2.0);
-    glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
     {
-        glfwSetFramebufferSizeCallback(w, onresize);
-
         int width, height;
         glfwGetFramebufferSize(w, &width, &height);
+
+        glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        glfwSetCursorPos(w, width / 2.0, height / 2.0);
+
+        glfwSetFramebufferSizeCallback(w, onresize);
         onresize(w, width, height);
     }
+
+    if (ppfb.width && ppfb.height) printf("Framebuffer size (WxH): %ux%u.\n", ppfb.width, ppfb.height);
+    else puts("Framebuffer size (WxH): (aligned to window).");
+    printf("Noise texture size (WxH): %ux%u\n", noisetexwidth, noisetexheight);
 
     srand(time(NULL));
     glClearColor(0, 0, 0, 1);
     glCullFace(GL_BACK);
-    double lastframetime = 0;
+    double lastframetime = 0, lastmousex = winwidth / 2.0, lastmousey = winheight / 2.0;
     glfwSetTime(0);
     while (!glfwWindowShouldClose(w))
     {
@@ -376,13 +400,12 @@ int main(int argc, char *argv[])
             static vec2f camrot = {0, 0};
 
             {
-                static double lastx = WIN_WIDTH / 2.0, lasty = WIN_HEIGHT / 2.0;
                 double x, y;
                 glfwGetCursorPos(w, &x, &y);
-                double deltax = x - lastx;
-                double deltay = y - lasty;
-                lastx = x;
-                lasty = y;
+                double deltax = x - lastmousex;
+                double deltay = y - lastmousey;
+                lastmousex = x;
+                lastmousey = y;
 
                 camrot[1] += deltax * 0.005;
                 camrot[0] += deltay * 0.005;
@@ -412,14 +435,14 @@ int main(int argc, char *argv[])
             vec3f_norm2(up);
 
             {
-                if (glfwGetMouseButton(w, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS) speed = DEFAULT_SPEED;
+                if (glfwGetMouseButton(w, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS) flyspeed = DEFAULT_FLY_SPEED;
 
                 float speedfactor;
                 if (glfwGetKey(w, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) speedfactor = 3;
                 else if (glfwGetKey(w, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) speedfactor = 0.3;
                 else speedfactor = 1;
 
-                float factor = 5 * deltatime * speedfactor * speed;
+                float factor = 5 * deltatime * speedfactor * flyspeed;
 
                 static const vec3f worldup = {0, 1, 0};
                 vec3f vec3;
@@ -441,7 +464,7 @@ int main(int argc, char *argv[])
         glDisable(GL_CULL_FACE);
         glEnable(GL_DEPTH_TEST);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glViewport(0, 0, 800, 600);
+        glViewport(0, 0, ppfb.width ? ppfb.width : winwidth, ppfb.height ? ppfb.height : winheight);
 
         for (size_t i = 0; i < glmesh->surfacescount; i++)
         {
@@ -460,15 +483,15 @@ int main(int argc, char *argv[])
         glDisable(GL_DEPTH_TEST);
         glViewport(0, 0, winwidth, winheight);
 
-        for (size_t j = 0; j < NOISETEX_HEIGHT; j++)
-            for (size_t i = 0; i < NOISETEX_WIDTH; i++)
-                noisetexdata[j * NOISETEX_WIDTH + i] = rand() / (float)RAND_MAX;
+        for (size_t j = 0; j < noisetexheight; j++)
+            for (size_t i = 0; i < noisetexwidth; i++)
+                noisetexdata[j * noisetexwidth + i] = rand() / (float)RAND_MAX;
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, noisetex);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, NOISETEX_WIDTH, NOISETEX_HEIGHT, GL_RED, GL_FLOAT, noisetexdata);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, noisetexwidth, noisetexheight, GL_RED, GL_FLOAT, noisetexdata);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, fbtexcolor);
+        glBindTexture(GL_TEXTURE_2D, ppfb.texcolor);
 
         glBindVertexArray(ndcquad.VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
