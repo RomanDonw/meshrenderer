@@ -27,14 +27,16 @@ static char loadGLtexture(GLuint *texture, const char *file);
 
 struct Framebuffer
 {
+    // === [READ ONLY FIELDS] ===
     GLuint fb, texcolor, rbdepth;
+    unsigned int MSAAsamples;
 } typedef Framebuffer;
-static void initFB(Framebuffer * restrict fb, unsigned int width, unsigned int height, bool depthrendbuff);
+static void initFB(Framebuffer * restrict fb, unsigned int width, unsigned int height, bool depthrendbuff, unsigned int MSAAsamples);
 static bool checkFBcomplete(const Framebuffer * restrict fb);
 static void reconfigFB(const Framebuffer * restrict fb, unsigned int width, unsigned int height);
 static void freeFB(const Framebuffer * restrict fb);
 
-static Framebuffer fbs[1] = {0};
+static Framebuffer fbs[2] = {0};
 
 #define WIN_WIDTH 800
 #define WIN_HEIGHT 600
@@ -53,7 +55,11 @@ static void onresize(GLFWwindow *window, int width, int height)
         glUniformMatrix4fv(u_proj, 1, GL_TRUE, projm);
     }
 
-    if (!fbwidth || !fbheight) reconfigFB(fbs, winwidth, winheight);
+    if (!fbwidth || !fbheight)
+    {
+        reconfigFB(fbs, winwidth, winheight);
+        reconfigFB(fbs + 1, winwidth, winheight);
+    }
 }
 
 #define DEFAULT_FLY_SPEED 2.0
@@ -329,7 +335,7 @@ int main(int argc, char *argv[])
     GLuint noisetex;
     glGenTextures(1, &noisetex);
     glBindTexture(GL_TEXTURE_2D, noisetex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, noisetexwidth, noisetexheight, 0, GL_RED, GL_FLOAT, noisetexdata);
+    glTexStorage2D(GL_TEXTURE_2D, 0, GL_R32F, noisetexwidth, noisetexheight);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -339,8 +345,10 @@ int main(int argc, char *argv[])
 
     // ==========================================================================================
 
-    initFB(fbs, fbwidth ? fbwidth : 1, fbheight ? fbheight : 1, true);
-    printf("Framebuffer 0 complete status: %s.\n", checkFBcomplete(fbs + 0) ? "yes" : "no");
+    initFB(fbs, fbwidth ? fbwidth : 1, fbheight ? fbheight : 1, true, 4);
+    printf("Framebuffer 0 complete status: %s.\n", checkFBcomplete(fbs) ? "yes" : "no");
+    initFB(fbs + 1, fbwidth ? fbwidth : 1, fbheight ? fbheight : 1, false, 0);
+    printf("Framebuffer 1 complete status: %s.\n", checkFBcomplete(fbs + 1) ? "yes" : "no");
 
     // ==========================================================================================
     {
@@ -451,7 +459,15 @@ int main(int argc, char *argv[])
             glDrawElements(GL_TRIANGLES, glmesh->surfaces[i].triscount * 3, GL_UNSIGNED_INT, NULL);
         }
 
-        // ======================================================
+        // ==========================================================================================
+
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, fbs[0].fb);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbs[1].fb);
+        glBlitFramebuffer(0, 0, fbwidth ? fbwidth : winwidth, fbheight ? fbheight : winheight,
+            0, 0, fbwidth ? fbwidth : winwidth, fbheight ? fbheight : winheight,
+            GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+        // ==========================================================================================
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glUseProgram(screenprog);
@@ -469,7 +485,7 @@ int main(int argc, char *argv[])
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, noisetexwidth, noisetexheight, GL_RED, GL_FLOAT, noisetexdata);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, fbs[0].texcolor);
+        glBindTexture(GL_TEXTURE_2D, fbs[1].texcolor);
 
         glBindVertexArray(ndcquad.VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
@@ -506,7 +522,7 @@ static char loadGLtexture(GLuint *texture, const char *file)
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
- 
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
@@ -514,31 +530,56 @@ static char loadGLtexture(GLuint *texture, const char *file)
     return 0;
 }
 
-static void initFB(Framebuffer * restrict fb, unsigned int width, unsigned int height, bool depthrendbuff)
+static void initFB(Framebuffer * restrict fb, unsigned int width, unsigned int height, bool depthrendbuff, unsigned int MSAAsamples)
 {
     glGenFramebuffers(1, &fb->fb);
     glBindFramebuffer(GL_FRAMEBUFFER, fb->fb);
 
-    glGenTextures(1, &fb->texcolor);
-    glBindTexture(GL_TEXTURE_2D, fb->texcolor);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb->texcolor, 0);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    if (MSAAsamples)
+    {
+        glGenTextures(1, &fb->texcolor);
+        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, fb->texcolor);
+
+        glTextureStorage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, MSAAsamples, GL_RGB32F, width, height, GL_TRUE);
+        glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, fb->texcolor, 0);
+
+        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
+    }
+    else
+    {
+        glGenTextures(1, &fb->texcolor);
+        glBindTexture(GL_TEXTURE_2D, fb->texcolor);
+
+        glTexStorage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb->texcolor, 0);
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
 
     if (depthrendbuff)
     {
         glGenRenderbuffers(1, &fb->rbdepth);
         glBindRenderbuffer(GL_RENDERBUFFER, fb->rbdepth);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, width, height);
+
+        if (MSAAsamples) glRenderbufferStorageMultisample(GL_RENDERBUFFER, MSAAsamples, GL_DEPTH_COMPONENT32F, width, height);
+        else glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, width, height);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fb->rbdepth);
+
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
     }
     else fb->rbdepth = 0;
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    fb->MSAAsamples = MSAAsamples;
 }
 
 static bool checkFBcomplete(const Framebuffer * restrict fb)
@@ -546,14 +587,24 @@ static bool checkFBcomplete(const Framebuffer * restrict fb)
 
 static void reconfigFB(const Framebuffer * restrict fb, unsigned int width, unsigned int height)
 {
-    glBindTexture(GL_TEXTURE_2D, fb->texcolor);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, NULL);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    if (fb->MSAAsamples)
+    {
+        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, fb->texcolor);
+        glTextureStorage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, fb->MSAAsamples, GL_RGB32F, width, height, GL_TRUE);
+        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
+    }
+    else
+    {
+        glBindTexture(GL_TEXTURE_2D, fb->texcolor);
+        glTexStorage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
 
     if (fb->rbdepth)
     {
         glBindRenderbuffer(GL_RENDERBUFFER, fb->rbdepth);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, width, height);
+        if (fb->MSAAsamples) glRenderbufferStorageMultisample(GL_RENDERBUFFER, fb->MSAAsamples, GL_DEPTH_COMPONENT32F, width, height);
+        else glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, width, height);
         glBindRenderbuffer(GL_RENDERBUFFER, 0);
     }
 }
