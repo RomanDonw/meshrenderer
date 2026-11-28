@@ -22,7 +22,7 @@
 #include "shaders.h"
 #include "util.h"
 
-static char loadGLtexture(GLuint *texture, const char *file);
+static char loadGLtexture(GLuint *texture, const char *file, bool genmipmap);
 
 #define GLDEBUG() (printf("OpenGL error %u at %llu:%s in function %s\n", glGetError(), __LINE__, __FILE__, __func__))
 
@@ -79,7 +79,7 @@ static void OGLdebugcallback(GLenum source, GLenum type, GLuint id, GLenum sever
 int main(int argc, char *argv[])
 {
     const char *meshpath = NULL, *texspath = NULL;
-    bool downscale = false, flipv = false, gldebug = false;
+    bool downscale = false, flipv = false, gldebug = false, usemipmaps = false;
     unsigned int noisetexwidth = 800, noisetexheight = 600, MSAAsamples = 4;
     {
         static const struct option longopts[] =
@@ -88,6 +88,7 @@ int main(int argc, char *argv[])
             { .name = "noiseTextureSize", .has_arg = required_argument, .val = 257, .flag = NULL },
             { .name = "OGLdebug", .has_arg = no_argument, .val = 258, .flag = NULL },
             { .name = "MSAAsamples", .has_arg = required_argument, .val = 259, .flag = NULL },
+            { .name = "useMipmaps", .has_arg = no_argument, .val = 260, .flag = NULL },
             {0}
         };
         int p;
@@ -128,6 +129,10 @@ int main(int argc, char *argv[])
                 case 259:
                     if (sscanf(optarg, "%u", &MSAAsamples) < 1)
                     { puts("failed parsing option --MSAAsamples"); return 1; }
+                    break;
+
+                case 260:
+                    usemipmaps = true;
                     break;
             }
         }
@@ -269,7 +274,7 @@ int main(int argc, char *argv[])
             memcpy(texpath + texspathlen + namesize, ".png", 4);
             *(texpath + texspathlen + namesize + 4) = 0;
 
-            if (loadGLtexture(texs + i, texpath)) printf("failed to load texture %s\n", texpath);
+            if (loadGLtexture(texs + i, texpath, usemipmaps)) printf("failed to load texture %s\n", texpath);
         }
 
         free(texpath);
@@ -278,7 +283,7 @@ int main(int argc, char *argv[])
     // ==========================================================================================
 
     GLuint tex;
-    if (loadGLtexture(&tex, "res/C3A2A_TRANS1.png"))
+    if (loadGLtexture(&tex, "res/C3A2A_TRANS1.png", usemipmaps))
     {
         puts("failed loading texture res/C3A2A_TRANS1.png");
         free(texs);
@@ -531,7 +536,7 @@ int main(int argc, char *argv[])
     return 1;
 }
 
-static char loadGLtexture(GLuint *texture, const char *file)
+static char loadGLtexture(GLuint *texture, const char *file, bool genmipmap)
 {
     int x, y, ch;
     void *data = stbi_load(file, &x, &y, &ch, 0);
@@ -544,10 +549,10 @@ static char loadGLtexture(GLuint *texture, const char *file)
 
     glTexImage2D(GL_TEXTURE_2D, 0, ch == 4 ? GL_RGBA8 : GL_RGB8, x, y, 0, ch == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);
     stbi_image_free(data);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    
+    if (genmipmap) glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, genmipmap ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
