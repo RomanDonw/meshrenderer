@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include <stb_image.h>
 #include <string.h>
 #include <math.h>
 #include <getopt.h>
@@ -22,27 +21,13 @@
 #include "shaders.h"
 #include "util.h"
 
-static char loadGLtexture(GLuint *texture, const char *file, bool genmipmap);
+static const char *memallocfailstr = "memory allocation failed";
 
-#define GLDEBUG() (printf("OpenGL error %u at %llu:%s in function %s\n", glGetError(), __LINE__, __FILE__, __func__))
-
-struct Framebuffer
-{
-    // === [READ ONLY FIELDS] ===
-    GLuint fb, texcolor, rbdepth;
-    unsigned int MSAAsamples;
-} typedef Framebuffer;
-static void initFB(Framebuffer * restrict fb, unsigned int width, unsigned int height, bool depthrendbuff, unsigned int MSAAsamples);
-static bool checkFBcomplete(const Framebuffer * restrict fb);
-static void reconfigFB(const Framebuffer * restrict fb, unsigned int width, unsigned int height);
-static void freeFB(const Framebuffer * restrict fb);
-
+static unsigned int fbfixedwidth = 0, fbfixedheight = 0;
 static Framebuffer fbs[2] = {0};
 
-#define WIN_WIDTH 800
-#define WIN_HEIGHT 600
 static GLint u_proj = -1, modelprog = 0;
-static unsigned int winwidth = 1, winheight = 1, fbwidth = 0, fbheight = 0;
+static unsigned int winwidth = 1, winheight = 1;
 static void onresize(GLFWwindow *window, int width, int height)
 {
     winwidth = width > 0 ? width : 1;
@@ -56,10 +41,10 @@ static void onresize(GLFWwindow *window, int width, int height)
         glUniformMatrix4fv(u_proj, 1, GL_TRUE, projm);
     }
 
-    if (!fbwidth || !fbheight)
+    if (!fbfixedwidth || !fbfixedheight)
     {
-        reconfigFB(fbs, winwidth, winheight);
-        reconfigFB(fbs + 1, winwidth, winheight);
+        fb_resize(fbs, winwidth, winheight);
+        fb_resize(fbs + 1, winwidth, winheight);
     }
 }
 
@@ -71,11 +56,11 @@ static void onscroll(GLFWwindow *w, double x, double y)
     flyspeed = s > 0 ? s : 0;
 }
 
-static const char *memallocfailstr = "memory allocation failed";
-
-static void OGLdebugcallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
+static void onGLdebug(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userdata)
 { printf("[source: %u, type: %u, id: %u, severity: %u]: %s\n", source, type, id, severity, message); }
 
+#define WIN_STARTUP_WIDTH 800
+#define WIN_STARTUP_HEIGHT 600
 int main(int argc, char *argv[])
 {
     const char *meshpath = NULL, *texspath = NULL;
@@ -113,7 +98,7 @@ int main(int argc, char *argv[])
                     break;
 
                 case 256:
-                    if (sscanf(optarg, "%u,%u", &fbwidth, &fbheight) < 2)
+                    if (sscanf(optarg, "%u,%u", &fbfixedwidth, &fbfixedheight) < 2)
                     { puts("failed parsing option --framebufferSize"); return 1; }
                     break;
 
@@ -151,7 +136,7 @@ int main(int argc, char *argv[])
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
     GLFWwindow *w;
-    if (!(w = glfwCreateWindow(WIN_WIDTH, WIN_HEIGHT, "Mesh renderer", NULL, NULL))) { puts("error creating window"); goto errorquit_glfw; }
+    if (!(w = glfwCreateWindow(WIN_STARTUP_WIDTH, WIN_STARTUP_HEIGHT, "Mesh renderer", NULL, NULL))) { puts("error creating window"); goto errorquit_glfw; }
     glfwMakeContextCurrent(w);
     glfwSetScrollCallback(w, onscroll);
 
@@ -179,7 +164,7 @@ int main(int argc, char *argv[])
 
     // ==========================================================================================
 
-    if (gldebug) { glEnable(GL_DEBUG_OUTPUT); glDebugMessageCallback(OGLdebugcallback, NULL); }
+    if (gldebug) { glEnable(GL_DEBUG_OUTPUT); glDebugMessageCallback(onGLdebug, NULL); }
 
     char *log;
     modelprog = glCreateProgram();
@@ -371,10 +356,10 @@ int main(int argc, char *argv[])
 
     // ==========================================================================================
 
-    initFB(fbs, fbwidth ? fbwidth : 1, fbheight ? fbheight : 1, true, MSAAsamples);
-    printf("Framebuffer 0 complete status: %s.\n", checkFBcomplete(fbs) ? "yes" : "no");
-    initFB(fbs + 1, fbwidth ? fbwidth : 1, fbheight ? fbheight : 1, false, 0);
-    printf("Framebuffer 1 complete status: %s.\n", checkFBcomplete(fbs + 1) ? "yes" : "no");
+    fb_init(fbs, fbfixedwidth ? fbfixedwidth : 1, fbfixedheight ? fbfixedheight : 1, true, MSAAsamples);
+    printf("Framebuffer 0 complete status: %s.\n", fb_checkcomplete(fbs) ? "yes" : "no");
+    fb_init(fbs + 1, fbfixedwidth ? fbfixedwidth : 1, fbfixedheight ? fbfixedheight : 1, false, 0);
+    printf("Framebuffer 1 complete status: %s.\n", fb_checkcomplete(fbs + 1) ? "yes" : "no");
 
     // ==========================================================================================
 
@@ -389,7 +374,7 @@ int main(int argc, char *argv[])
         onresize(w, width, height);
     }
 
-    if (fbwidth && fbheight) printf("Framebuffers size (WxH): %ux%u.\n", fbwidth, fbheight);
+    if (fbfixedwidth && fbfixedheight) printf("Framebuffers size (WxH): %ux%u.\n", fbfixedwidth, fbfixedheight);
     else puts("Framebuffers size (WxH): (aligned to window).");
     printf("Noise texture size (WxH): %ux%u.\n", noisetexwidth, noisetexheight);
 
@@ -475,7 +460,7 @@ int main(int argc, char *argv[])
         glDisable(GL_CULL_FACE);
         glEnable(GL_DEPTH_TEST);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glViewport(0, 0, fbwidth ? fbwidth : winwidth, fbheight ? fbheight : winheight);
+        glViewport(0, 0, fbfixedwidth ? fbfixedwidth : winwidth, fbfixedheight ? fbfixedheight : winheight);
 
         for (size_t i = 0; i < glmesh->surfacescount; i++)
         {
@@ -492,8 +477,8 @@ int main(int argc, char *argv[])
         {
             glBindFramebuffer(GL_READ_FRAMEBUFFER, fbs[0].fb);
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbs[1].fb);
-            glBlitFramebuffer(0, 0, fbwidth ? fbwidth : winwidth, fbheight ? fbheight : winheight,
-                0, 0, fbwidth ? fbwidth : winwidth, fbheight ? fbheight : winheight,
+            glBlitFramebuffer(0, 0, fbfixedwidth ? fbfixedwidth : winwidth, fbfixedheight ? fbfixedheight : winheight,
+                0, 0, fbfixedwidth ? fbfixedwidth : winwidth, fbfixedheight ? fbfixedheight : winheight,
                 GL_COLOR_BUFFER_BIT, GL_NEAREST);
         }
 
@@ -534,114 +519,4 @@ int main(int argc, char *argv[])
     errorquit_glfw:
         glfwTerminate();
     return 1;
-}
-
-static char loadGLtexture(GLuint *texture, const char *file, bool genmipmap)
-{
-    int x, y, ch;
-    void *data = stbi_load(file, &x, &y, &ch, 0);
-    if (!data) return 1;
-
-    if (x <= 0 || y <= 0 || ch > 4 || ch < 3) { stbi_image_free(data); return 1; }
-
-    glGenTextures(1, texture);
-    glBindTexture(GL_TEXTURE_2D, *texture);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, ch == 4 ? GL_RGBA8 : GL_RGB8, x, y, 0, ch == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);
-    stbi_image_free(data);
-    
-    if (genmipmap) glGenerateMipmap(GL_TEXTURE_2D);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, genmipmap ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-    return 0;
-}
-
-static void initFB(Framebuffer * restrict fb, unsigned int width, unsigned int height, bool depthrendbuff, unsigned int MSAAsamples)
-{
-    glGenFramebuffers(1, &fb->fb);
-    glBindFramebuffer(GL_FRAMEBUFFER, fb->fb);
-
-    if (MSAAsamples)
-    {
-        glGenTextures(1, &fb->texcolor);
-        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, fb->texcolor);
-
-        glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, MSAAsamples, GL_RGB32F, width, height, GL_TRUE);
-        glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, fb->texcolor, 0);
-
-        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
-    }
-    else
-    {
-        glGenTextures(1, &fb->texcolor);
-        glBindTexture(GL_TEXTURE_2D, fb->texcolor);
-
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, NULL);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb->texcolor, 0);
-
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-
-    if (depthrendbuff)
-    {
-        glGenRenderbuffers(1, &fb->rbdepth);
-        glBindRenderbuffer(GL_RENDERBUFFER, fb->rbdepth);
-
-        if (MSAAsamples) glRenderbufferStorageMultisample(GL_RENDERBUFFER, MSAAsamples, GL_DEPTH_COMPONENT32F, width, height);
-        else glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, width, height);
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fb->rbdepth);
-
-        glBindRenderbuffer(GL_RENDERBUFFER, 0);
-    }
-    else fb->rbdepth = 0;
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    fb->MSAAsamples = MSAAsamples;
-}
-
-static bool checkFBcomplete(const Framebuffer * restrict fb)
-{ return glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE; }
-
-static void reconfigFB(const Framebuffer * restrict fb, unsigned int width, unsigned int height)
-{
-    if (fb->MSAAsamples)
-    {
-        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, fb->texcolor);
-        glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, fb->MSAAsamples, GL_RGB32F, width, height, GL_TRUE);
-        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
-    }
-    else
-    {
-        glBindTexture(GL_TEXTURE_2D, fb->texcolor);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, NULL);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-
-    if (fb->rbdepth)
-    {
-        glBindRenderbuffer(GL_RENDERBUFFER, fb->rbdepth);
-        if (fb->MSAAsamples) glRenderbufferStorageMultisample(GL_RENDERBUFFER, fb->MSAAsamples, GL_DEPTH_COMPONENT32F, width, height);
-        else glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, width, height);
-        glBindRenderbuffer(GL_RENDERBUFFER, 0);
-    }
-}
-
-static void freeFB(const Framebuffer * restrict fb)
-{
-    if (fb->rbdepth) glDeleteRenderbuffers(1, &fb->rbdepth);
-    glDeleteTextures(1, &fb->texcolor);
-    glDeleteFramebuffers(1, &fb->fb);
 }
