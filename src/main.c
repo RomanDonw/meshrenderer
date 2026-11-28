@@ -126,46 +126,33 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (!meshpath)
-    {
-        puts("specify path to mesh through -m parameter");
-        return 1;
-    }
-
-    if (!texspath)
-    {
-        puts("specify path to textures folder through -t parameter");
-        return 1;
-    }
-
-    if (!noisetexwidth || !noisetexheight)
-    {
-        puts("noise texture size must be positive non-zero value");
-        return 1;
-    }
+    if (!meshpath) { puts("specify path to mesh through -m parameter"); return 1; }
+    if (!texspath) { puts("specify path to textures folder through -t parameter"); return 1; }
+    if (!noisetexwidth || !noisetexheight) { puts("noise texture size must be positive non-zero value"); return 1; }
 
     // ==========================================================================================
 
     if (!glfwInit()) { puts("failed to initialize GLFW"); return 1; }
 
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     GLFWwindow *w;
     if (!(w = glfwCreateWindow(WIN_WIDTH, WIN_HEIGHT, "Mesh renderer", NULL, NULL))) { puts("error creating window"); goto errorquit_glfw; }
     glfwMakeContextCurrent(w);
-
-    if (!gladLoadGL(glfwGetProcAddress)) { puts("error loading OpenGL context through GLAD"); goto errorquit_glfw;  }
     glfwSetScrollCallback(w, onscroll);
+
+    {
+        int oglver = gladLoadGL(glfwGetProcAddress);
+        if (!oglver) { puts("error loading OpenGL context through GLAD"); goto errorquit_glfw; }
+        printf("Loaded OpenGL version: %d.%d.\n", GLAD_VERSION_MAJOR(oglver), GLAD_VERSION_MINOR(oglver));
+        if (!GLAD_GL_VERSION_3_3) { puts("Required OpenGL version 3.3 doesn't supported."); goto errorquit_glfw; }
+    }
 
     // ==========================================================================================
 
-    if (gldebug)
-    {
-        glEnable(GL_DEBUG_OUTPUT);
-        glDebugMessageCallback(OGLdebugcallback, NULL);
-    }
+    if (gldebug) { glEnable(GL_DEBUG_OUTPUT); glDebugMessageCallback(OGLdebugcallback, NULL); }
 
     char *log;
     modelprog = glCreateProgram();
@@ -363,6 +350,7 @@ int main(int argc, char *argv[])
     printf("Framebuffer 1 complete status: %s.\n", checkFBcomplete(fbs + 1) ? "yes" : "no");
 
     // ==========================================================================================
+
     {
         int width, height;
         glfwGetFramebufferSize(w, &width, &height);
@@ -376,7 +364,7 @@ int main(int argc, char *argv[])
 
     if (fbwidth && fbheight) printf("Framebuffers size (WxH): %ux%u.\n", fbwidth, fbheight);
     else puts("Framebuffers size (WxH): (aligned to window).");
-    printf("Noise texture size (WxH): %ux%u\n", noisetexwidth, noisetexheight);
+    printf("Noise texture size (WxH): %ux%u.\n", noisetexwidth, noisetexheight);
 
     srand(time(NULL));
     glClearColor(0, 0, 0, 1);
