@@ -12,6 +12,7 @@
 #include <getopt.h>
 #include <ctype.h>
 #include <time.h>
+#include <stdint.h>
 
 #include "vec2.h"
 #include "vec3.h"
@@ -148,6 +149,13 @@ int main(int argc, char *argv[])
         if (!oglver) { puts("error loading OpenGL context through GLAD"); goto errorquit_glfw; }
         printf("Loaded OpenGL version: %d.%d.\n", GLAD_VERSION_MAJOR(oglver), GLAD_VERSION_MINOR(oglver));
         if (!GLAD_GL_VERSION_3_3) { puts("Required OpenGL version 3.3 doesn't supported."); goto errorquit_glfw; }
+
+        uint64_t v;
+        glGetInteger64v(GL_MAX_COLOR_TEXTURE_SAMPLES, &v);
+        printf("Max color texture samples: %llu.\n", v);
+
+        glGetInteger64v(GL_MAX_DEPTH_TEXTURE_SAMPLES, &v);
+        printf("Max depth texture samples: %llu.\n", v);
     }
 
     // ==========================================================================================
