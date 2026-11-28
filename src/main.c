@@ -72,16 +72,20 @@ static void onscroll(GLFWwindow *w, double x, double y)
 
 static const char *memallocfailstr = "memory allocation failed";
 
+static void OGLdebugcallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
+{ printf("[source: %u, type: %u, id: %u, severity: %u]: %s\n", source, type, id, severity, message); }
+
 int main(int argc, char *argv[])
 {
     const char *meshpath = NULL, *texspath = NULL;
-    bool downscale = false, flipv = false;
+    bool downscale = false, flipv = false, gldebug = false;
     unsigned int noisetexwidth = 800, noisetexheight = 600;
     {
         static const struct option longopts[] =
         {
             { .name = "framebufferSize", .has_arg = required_argument, .val = 256, .flag = NULL },
             { .name = "noiseTextureSize", .has_arg = required_argument, .val = 257, .flag = NULL },
+            { .name = "OGLdebug", .has_arg = no_argument, .val = 258, .flag = NULL },
             {0}
         };
         int p;
@@ -113,6 +117,10 @@ int main(int argc, char *argv[])
                 case 257:
                     if (sscanf(optarg, "%u,%u", &noisetexwidth, &noisetexheight) < 2)
                     { puts("failed parsing option --noiseTextureSize"); return 1; }
+                    break;
+
+                case 258:
+                    gldebug = true;
                     break;
             }
         }
@@ -152,6 +160,12 @@ int main(int argc, char *argv[])
     glfwSetScrollCallback(w, onscroll);
 
     // ==========================================================================================
+
+    if (gldebug)
+    {
+        glEnable(GL_DEBUG_OUTPUT);
+        glDebugMessageCallback(OGLdebugcallback, NULL);
+    }
 
     char *log;
     modelprog = glCreateProgram();
@@ -335,11 +349,9 @@ int main(int argc, char *argv[])
     GLuint noisetex;
     glGenTextures(1, &noisetex);
     glBindTexture(GL_TEXTURE_2D, noisetex);
-    glTexStorage2D(GL_TEXTURE_2D, 0, GL_R32F, noisetexwidth, noisetexheight);
-
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, noisetexwidth, noisetexheight, 0, GL_RED, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
- 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
@@ -465,7 +477,7 @@ int main(int argc, char *argv[])
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbs[1].fb);
         glBlitFramebuffer(0, 0, fbwidth ? fbwidth : winwidth, fbheight ? fbheight : winheight,
             0, 0, fbwidth ? fbwidth : winwidth, fbheight ? fbheight : winheight,
-            GL_COLOR_BUFFER_BIT, GL_LINEAR);
+            GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
         // ==========================================================================================
 
@@ -540,7 +552,7 @@ static void initFB(Framebuffer * restrict fb, unsigned int width, unsigned int h
         glGenTextures(1, &fb->texcolor);
         glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, fb->texcolor);
 
-        glTextureStorage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, MSAAsamples, GL_RGB32F, width, height, GL_TRUE);
+        glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, MSAAsamples, GL_RGB32F, width, height, GL_TRUE);
         glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -554,7 +566,7 @@ static void initFB(Framebuffer * restrict fb, unsigned int width, unsigned int h
         glGenTextures(1, &fb->texcolor);
         glBindTexture(GL_TEXTURE_2D, fb->texcolor);
 
-        glTexStorage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -590,13 +602,13 @@ static void reconfigFB(const Framebuffer * restrict fb, unsigned int width, unsi
     if (fb->MSAAsamples)
     {
         glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, fb->texcolor);
-        glTextureStorage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, fb->MSAAsamples, GL_RGB32F, width, height, GL_TRUE);
+        glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, fb->MSAAsamples, GL_RGB32F, width, height, GL_TRUE);
         glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
     }
     else
     {
         glBindTexture(GL_TEXTURE_2D, fb->texcolor);
-        glTexStorage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, NULL);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
