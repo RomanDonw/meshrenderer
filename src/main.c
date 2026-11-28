@@ -80,13 +80,14 @@ int main(int argc, char *argv[])
 {
     const char *meshpath = NULL, *texspath = NULL;
     bool downscale = false, flipv = false, gldebug = false;
-    unsigned int noisetexwidth = 800, noisetexheight = 600;
+    unsigned int noisetexwidth = 800, noisetexheight = 600, MSAAsamples = 4;
     {
         static const struct option longopts[] =
         {
             { .name = "framebufferSize", .has_arg = required_argument, .val = 256, .flag = NULL },
             { .name = "noiseTextureSize", .has_arg = required_argument, .val = 257, .flag = NULL },
             { .name = "OGLdebug", .has_arg = no_argument, .val = 258, .flag = NULL },
+            { .name = "MSAAsamples", .has_arg = required_argument, .val = 259, .flag = NULL },
             {0}
         };
         int p;
@@ -123,6 +124,11 @@ int main(int argc, char *argv[])
                 case 258:
                     gldebug = true;
                     break;
+                
+                case 259:
+                    if (sscanf(optarg, "%u", &MSAAsamples) < 1)
+                    { puts("failed parsing option --MSAAsamples"); return 1; }
+                    break;
             }
         }
     }
@@ -149,14 +155,22 @@ int main(int argc, char *argv[])
         if (!oglver) { puts("error loading OpenGL context through GLAD"); goto errorquit_glfw; }
         printf("Loaded OpenGL version: %d.%d.\n", GLAD_VERSION_MAJOR(oglver), GLAD_VERSION_MINOR(oglver));
         if (!GLAD_GL_VERSION_3_3) { puts("Required OpenGL version 3.3 doesn't supported."); goto errorquit_glfw; }
-
-        uint64_t v;
-        glGetInteger64v(GL_MAX_COLOR_TEXTURE_SAMPLES, &v);
-        printf("Max color texture samples: %llu.\n", v);
-
-        glGetInteger64v(GL_MAX_DEPTH_TEXTURE_SAMPLES, &v);
-        printf("Max depth texture samples: %llu.\n", v);
     }
+
+    // ==========================================================================================
+
+    uint64_t maxAAsamples, maxcolortextureAAsamples;
+    glGetInteger64v(GL_MAX_SAMPLES, &maxAAsamples);
+    printf("Max general anti-aliasing samples: %llu.\n", maxAAsamples);
+    glGetInteger64v(GL_MAX_COLOR_TEXTURE_SAMPLES, &maxcolortextureAAsamples);
+    printf("Max color texture anti-aliasing samples: %llu.\n", maxcolortextureAAsamples);
+
+    if (MSAAsamples > maxAAsamples)
+    { puts("Specified more anti-aliasing samples than maximum supported."); goto errorquit_glfw; }
+    if (MSAAsamples > maxcolortextureAAsamples)
+    { puts("Specified more anti-aliasing samples than maximum supported by color texture."); goto errorquit_glfw; }
+    if (MSAAsamples) printf("MSAA samples used: %u.\n", MSAAsamples);
+    else puts("MSAA samples used: (filtration disabled).");
 
     // ==========================================================================================
 
@@ -352,7 +366,7 @@ int main(int argc, char *argv[])
 
     // ==========================================================================================
 
-    initFB(fbs, fbwidth ? fbwidth : 1, fbheight ? fbheight : 1, true, 4);
+    initFB(fbs, fbwidth ? fbwidth : 1, fbheight ? fbheight : 1, true, MSAAsamples);
     printf("Framebuffer 0 complete status: %s.\n", checkFBcomplete(fbs) ? "yes" : "no");
     initFB(fbs + 1, fbwidth ? fbwidth : 1, fbheight ? fbheight : 1, false, 0);
     printf("Framebuffer 1 complete status: %s.\n", checkFBcomplete(fbs + 1) ? "yes" : "no");
@@ -469,11 +483,14 @@ int main(int argc, char *argv[])
 
         // ==========================================================================================
 
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, fbs[0].fb);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbs[1].fb);
-        glBlitFramebuffer(0, 0, fbwidth ? fbwidth : winwidth, fbheight ? fbheight : winheight,
-            0, 0, fbwidth ? fbwidth : winwidth, fbheight ? fbheight : winheight,
-            GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        if (MSAAsamples)
+        {
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, fbs[0].fb);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbs[1].fb);
+            glBlitFramebuffer(0, 0, fbwidth ? fbwidth : winwidth, fbheight ? fbheight : winheight,
+                0, 0, fbwidth ? fbwidth : winwidth, fbheight ? fbheight : winheight,
+                GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        }
 
         // ==========================================================================================
 
@@ -493,7 +510,7 @@ int main(int argc, char *argv[])
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, noisetexwidth, noisetexheight, GL_RED, GL_FLOAT, noisetexdata);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, fbs[1].texcolor);
+        glBindTexture(GL_TEXTURE_2D, fbs[MSAAsamples ? 1 : 0].texcolor);
 
         glBindVertexArray(ndcquad.VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
